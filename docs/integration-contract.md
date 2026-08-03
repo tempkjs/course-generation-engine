@@ -1,6 +1,6 @@
 # Swakojo Academy — Integration Contract & Architecture Boundaries
 
-**Status:** Decided — working reference · **Contract version:** v0.3
+**Status:** Decided — working reference · **Contract version:** v0.4
 **Sits under:** `SAKOS` (constitution) · **Sibling of:** `swakojo-academy-revenue-model.md`
 **Governs:** every assembly line that builds any part of the course generation engine.
 
@@ -321,6 +321,12 @@ Generation is **two distinct, separately-costed operations with a human gate bet
 - The earlier M1a plan (light/standard tiers, Haiku/Sonnet) is **superseded.** Nearly all engine tasks (curriculum, artefacts) are medium-to-high complexity, so there is no cheap-task category worth splitting yet.
 - **Decision:** a **single standard (Sonnet-class) model** for now; the tier gate is **deferred, not built.** *Trigger to revisit:* a genuinely mechanical, high-volume task category (e.g. bulk metadata tagging, title/summary reformatting) where a cheaper model won't hurt quality.
 - **Quality gate first, cost gate second.** Never down-tier curriculum or artefact generation to save pennies — that guts the moat.
+
+---
+
+## Changelog
+
+- **v0.4** — Additive: `EngineConfig` (`src/contracts/config.ts`) gained `anthropicModel: string`, resolved in `src/shared/config.ts` from `ANTHROPIC_MODEL` (default `claude-sonnet-5`). No seam signature changed; see ADR 0008. Milestone: live Phase-1 curriculum generation (Seam 1 `LiveCourseEngine` + Seam 2 `AnthropicLlmProvider`).
 
 ---
 

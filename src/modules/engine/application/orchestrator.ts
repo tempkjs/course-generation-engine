@@ -1,11 +1,11 @@
+import 'server-only';
 import type { CourseEngine } from '@/contracts';
 import { getConfig } from '@/shared/config';
 import { MockCourseEngine } from '../infrastructure/engineMock';
-// The live orchestrator will compose getLlmProvider() + getKnowledgeRetriever()/Writer()
-// + style conditioning. In mock mode we return the deterministic mock engine.
-// TODO(seam-1, live): implement LiveCourseEngine composing seams 2 & 3, writing back via seam 3.
+import { LiveCourseEngine } from '../infrastructure/engineLive';
+// LiveCourseEngine (Phase 1 only) composes getLlmProvider(); knowledge-cache composition
+// (seam 3) and artefact generation (Phase 2) land in later milestones.
 export function getCourseEngine(): CourseEngine {
   const { aiMode } = getConfig();
-  if (aiMode === 'mock') return new MockCourseEngine();
-  return new MockCourseEngine(); // placeholder until LiveCourseEngine lands
+  return aiMode === 'live' ? new LiveCourseEngine() : new MockCourseEngine();
 }

@@ -1,11 +1,13 @@
 import type { CourseEngine, GenerateRequest, Edit, Course, Artefact, ArtefactType, StyleProfile } from '@/contracts';
-import { applyEdits } from '../domain/curriculum';
+import { applyEdits, assertValidatedForArtefacts } from '../domain/curriculum';
 // AI_MODE=mock CourseEngine: deterministic, no external calls, but a REAL structured draft
 // through the REAL interface — so the harness (and later the website) exercise the true seam.
 export class MockCourseEngine implements CourseEngine {
+  private courses = new Map<string, Course>();
+
   async generateCurriculum(req: GenerateRequest): Promise<Course> {
     const id = `course-${req.topic.toLowerCase().replace(/\s+/g, '-')}`;
-    return {
+    const course: Course = {
       id, status: 'draft', title: req.topic, field: req.field, level: req.level,
       practitionerId: req.practitionerId, priceBand: 'standard', cadence: req.cadence,
       sourceRefs: [], createdAt: new Date(0).toISOString(),
@@ -18,17 +20,22 @@ export class MockCourseEngine implements CourseEngine {
         }],
       })),
     };
+    this.courses.set(id, course);
+    return course;
   }
   async refineCurriculum(courseId: string, edits: Edit[]): Promise<Course> {
-    const base = await this.generateCurriculum({
+    const base = this.courses.get(courseId) ?? await this.generateCurriculum({
       topic: courseId.replace(/^course-/, '').replace(/-/g, ' '),
       field: 'software', level: 'medium', audienceExperience: '', durationWeeks: 5,
       cadence: 'weekend-2x2', practitionerId: 'p-mock',
       style: { practitionerId: 'p-mock', modalities: ['textual'], tone: 'plain', depth: 'working' },
     });
-    return applyEdits(base, edits);
+    const after = applyEdits(base, edits);
+    this.courses.set(courseId, after);
+    return after;
   }
   async generateArtefacts(courseId: string, prefs: ArtefactType[], _style: StyleProfile): Promise<Artefact[]> {
+    assertValidatedForArtefacts(this.courses.get(courseId));
     return prefs.map((type, i) => ({
       id: `${courseId}-art-${i}`, type, contentRef: `mock://${courseId}/${type}`,
       generatedBy: 'engine', approved: false,

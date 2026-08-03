@@ -9,6 +9,7 @@ export function getConfig(): EngineConfig {
   cached = {
     aiMode,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    anthropicModel: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   };

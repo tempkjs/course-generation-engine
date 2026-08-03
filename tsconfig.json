@@ -14,9 +14,18 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
-    "types": ["node", "vitest/globals"]
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "types": ["node", "vitest/globals"],
+    "allowJs": true,
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": ["src", "tests", "next-env.d.ts"],
+  "include": ["next-env.d.ts", "src", "tests", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }

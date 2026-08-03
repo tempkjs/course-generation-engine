@@ -1,16 +1,34 @@
 // Seam 1 CLIENT — the ONLY thing a UI imports. The disposable harness AND the real
 // Swakojo Academy website both import this. Plug-and-play: same client, different host.
-import type { CourseEngine, GenerateRequest, Edit, ArtefactType, StyleProfile } from '@/contracts';
-import { getCourseEngine } from '../application/orchestrator';
+//
+// Pure HTTP client — never imports the orchestrator/engine internals. That matters beyond
+// style: engine internals (LiveCourseEngine -> AnthropicLlmProvider -> the Anthropic SDK)
+// pull in node:fs/node:path, which breaks the browser build the moment anything upstream of
+// this file imports them statically (see STANDING_GOTCHAS.md). Each method below is a thin
+// wrapper over a server-only /api route.
+import type { CourseEngine, GenerateRequest, Edit, ArtefactType, StyleProfile, Course, Artefact } from '@/contracts';
 
-// In-process now; swap the impl for an HTTP client against the deployed engine API later,
-// WITHOUT changing this interface — the website's call sites stay identical.
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${path} failed: ${res.status} ${await res.text()}`);
+  return (await res.json()) as T;
+}
+
 export class CourseEngineClient implements CourseEngine {
-  private engine: CourseEngine = getCourseEngine();
-  generateCurriculum(req: GenerateRequest) { return this.engine.generateCurriculum(req); }
-  refineCurriculum(courseId: string, edits: Edit[]) { return this.engine.refineCurriculum(courseId, edits); }
-  generateArtefacts(courseId: string, prefs: ArtefactType[], style: StyleProfile) {
-    return this.engine.generateArtefacts(courseId, prefs, style);
+  generateCurriculum(req: GenerateRequest): Promise<Course> {
+    return postJson<Course>('/api/generate-curriculum', req);
   }
-  commitToCache(courseId: string) { return this.engine.commitToCache(courseId); }
+  refineCurriculum(courseId: string, edits: Edit[]): Promise<Course> {
+    return postJson<Course>('/api/refine-curriculum', { courseId, edits });
+  }
+  generateArtefacts(courseId: string, prefs: ArtefactType[], style: StyleProfile): Promise<Artefact[]> {
+    return postJson<Artefact[]>('/api/generate-artefacts', { courseId, prefs, style });
+  }
+  commitToCache(courseId: string): Promise<void> {
+    return postJson<void>('/api/commit-to-cache', { courseId });
+  }
 }
