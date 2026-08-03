@@ -1,0 +1,30 @@
+{
+  "name": "course-creation-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI course-authoring engine for Swakojo Academy (the owned core; UI lives in the website).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "AI_MODE=mock vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
