@@ -29,9 +29,11 @@ Everything crosses a named seam. Never couple across one.
 - **Public-import-only:** modules import each other **only** through their `index.ts`.
   Deep imports (`modules/x/infrastructure/...`) from outside that module are forbidden.
 - **Server-side boundary:** the browser holds **no** API keys and touches **no** cache.
-- **No raw generated content in course rows:** content flows `generating → draft →
-  validated → published`; only validated content persists; only approved content writes
-  back to the cache.
+- **Two-phase gate (enforced):** content flows `generating → draft → validated → published`;
+  states are never skipped. `generateArtefacts` (Phase 2 / detailed course) is FORBIDDEN unless
+  `course.status === 'validated'` — the practitioner approves the curriculum first (ADR 0004).
+- **Cache is read-mostly:** substrates are curated, not learned from live edits. `KnowledgeWriter`
+  is an authoring/curation path; no live write-back at MVP (ADR 0005). Cache stays domain-scoped.
 - **AI_MODE:** all tests run in `AI_MODE=mock` (no external calls, deterministic). `live`
   is opt-in and never required to build or test.
 - **Contract-first:** shared types live in `src/contracts`. Do not redefine them per module.

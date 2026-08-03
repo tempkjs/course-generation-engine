@@ -1,6 +1,6 @@
 # Swakojo Academy — Integration Contract & Architecture Boundaries
 
-**Status:** Decided — working reference · **Contract version:** v0.2
+**Status:** Decided — working reference · **Contract version:** v0.3
 **Sits under:** `SAKOS` (constitution) · **Sibling of:** `swakojo-academy-revenue-model.md`
 **Governs:** every assembly line that builds any part of the course generation engine.
 
@@ -173,6 +173,7 @@ interface KnowledgeWriter    { upsert(unit: KnowledgeUnit): Promise<void>; }    
 interface RetrieveQuery { field: Field; domain?: string; level?: Level; text: string; topK: number; }
 ```
 - **Infra bought (pgvector/Supabase, Orq.ai, LlamaIndex); content owned.** The retriever/writer interfaces isolate the infra so it's replaceable. Only the engine (server-side) may call these. The cache is never reachable from the browser.
+- **Read-mostly at MVP:** `retrieve` is the hot path; `upsert` is used to *author/curate* substrates, not to absorb live practitioner edits (Appendix B.2).
 
 ### Seam 4 — App ↔ Database (persistence)
 
@@ -205,8 +206,8 @@ type DomainEvent =
 
 1. **The UI reaches the engine only through Seam 1.** No engine logic imported into UI components. *(This is the exact fix for the current CMS.)*
 2. **The engine, cache, RAG infra, and LLM keys are server-side only.** Browser holds no keys, touches no cache.
-3. **Generated content never lands directly in course rows.** It flows through status states; only validated content persists; only approved content writes back to the cache.
-4. **SOURCE (cache) and BUILD (course) are separate stores.** A course references source units; it never mutates them. The flywheel lives in SOURCE.
+3. **Generated content never lands directly in course rows, and Phase 2 is gated on approval.** Content flows through the status ladder `generating → draft → validated → published`; states are never skipped. **`generateArtefacts` (Phase 2, the detailed course) is forbidden unless `course.status === 'validated'`** — the practitioner must approve the curriculum first (see Appendix B.1).
+4. **SOURCE (cache) and BUILD (course) are separate stores; the cache is read-mostly.** A course references source units; it never mutates them. At MVP there is **no live write-back** of practitioner-edited curricula into substrates — `KnowledgeWriter` is a curation/authoring path only (see Appendix B.2). The flywheel door is left open but deferred.
 5. **Every bought component sits behind its adapter/interface** (LLM provider, RAG infra, LMS). Swapping any of them touches neither the UI nor the engine core.
 6. **Contracts are versioned and evolve additively.** Add fields; don't repurpose or remove them. Bump `Contract version` on change.
 7. **The app links out to the LMS; it never becomes the LMS.** No auth/payments/enrolment/student-DB built on the owned lines — that's the drift signal; stop.
@@ -278,6 +279,48 @@ CareerAsana and this engine share a spine: **AI inference + an accreting cache t
 **Renaming is load-bearing, not cosmetic.** Rename on copy — and specifically purge person-centric names (`twin`, `profile`, `userState`, `person…`). If those names survive the copy, they quietly pull the design back toward the personal model. The name is a scoping assumption in disguise.
 
 **Litmus before any verbatim copy:** run the A.1 test on the file. Passes ("many contributors, pooled by domain" or scope-neutral) → copy and rename. Fails ("one person over time") → shape only. When unsure, treat it as above the line.
+
+---
+
+## Appendix B — Generation & cache model (v0.3)
+
+The v0.3 decisions, captured coherently. These refine *how* the engine generates and *how* the cache behaves; they change no seam signatures.
+
+### B.1 Two-phase generation, gated on approval (enforced)
+
+Generation is **two distinct, separately-costed operations with a human gate between them:**
+
+1. **Phase 1 — curriculum draft** (structure, module/lesson titles, objectives). Lighter generation.
+2. **Human gate** — the practitioner adds / removes / (future: edits) / **approves**. On approval, status moves `draft → validated`.
+3. **Phase 2 — detailed course** (artefacts per lesson, style-conditioned). Heavy, high-token generation.
+
+**Invariant:** `generateArtefacts` (Phase 2) is **forbidden unless `course.status === 'validated'`.** The status ladder is enforced, not conventional. *Rationale:* this puts the expensive work behind human approval — cost control and quality control in one gate. You never pay the big generation for a curriculum the practitioner was going to reshape.
+
+### B.2 The cache is read-mostly / curated (write-back deferred)
+
+- Substrates (domain × level curriculum spines) are **authored and curated**, not learned from live practitioner edits. **No automatic write-back** of approved-edited curricula into substrates at MVP.
+- *Rationale:* a single bad approved edit would degrade a substrate that hundreds of future practitioners draw from, and there is no automatic way to tell a good edit from a lazy one at ingest. Curation keeps the floor high and the blast radius zero.
+- Substrate quality comes from the **generation prompt: a "pro L&D manager" baseline** that reliably produces a good-for-most curriculum — one only a genuinely experienced trainer would improve on.
+- `KnowledgeWriter` is therefore a **curation/authoring path** (you populate substrates), not a live practitioner-driven write. The cache is read-mostly in normal operation.
+- **Door left open (out of scope now):** later, measure use-as-is vs. edited rates; if edits with positive downstream signal emerge, introduce a **governed** write-back that ingests only vetted, positively-received curricula. *Earn* the write-back with data; don't assume it.
+
+### B.3 Pre-loaded substrates (initial cost)
+
+- Pre-load **~5–6 substrates** — one per field at the most likely entry level (≈ medium/working) — stretching to **~8–10** only to warm the two most-likely-first fields at a second level. **Not** the full field × level grid; **not** a flat 25 (that was CareerAsana's per-person unit; ours is domain × level).
+- Pre-load cost is a **rounding error** (a spine is a few thousand output tokens; 5–10 spines ≈ a few dollars, once). The real cost is **Phase 2 per approved course**, which only fires *after* commitment + approval — exactly where you want it. The approval gate (B.1) is what stops you paying the big number speculatively.
+
+### B.4 Router → domain-specialized config dispatch (planned; after M1)
+
+- **Experience:** "give it anything, it generates a course." **Internally:** a router classifies (domain, sub-domain, entry level, material type) and dispatches.
+- **Decision:** dispatch to domain-specialized **prompt/config bundles** (system prompt + substrate + artefact templates per domain) — **not** to separate fine-tuned models. One general model, many expert *configurations*. *Rationale:* per-domain models are a training/ops appliance trap and fragment the multi-field thesis; one strong general model, well-prompted, covers every field. Adding a field = adding a config bundle, not training a model.
+- The router is a **dispatch function behind Seam 1 — no new seam.** It composes with the (deferred) tier gate: router picks the config, tier would pick the model size.
+- **Sequencing:** *not in M1.* M1 proves one **general** prompt generates credible, field-agnostic curricula. Only after M1's cross-field results show where the general path is weak do we add the router to specialize **only the fields that need it.** Building it in M1 would hide the signal of whether the general engine is already good enough.
+
+### B.5 Model tier — Haiku deferred (supersedes the M1a plan)
+
+- The earlier M1a plan (light/standard tiers, Haiku/Sonnet) is **superseded.** Nearly all engine tasks (curriculum, artefacts) are medium-to-high complexity, so there is no cheap-task category worth splitting yet.
+- **Decision:** a **single standard (Sonnet-class) model** for now; the tier gate is **deferred, not built.** *Trigger to revisit:* a genuinely mechanical, high-volume task category (e.g. bulk metadata tagging, title/summary reformatting) where a cheaper model won't hurt quality.
+- **Quality gate first, cost gate second.** Never down-tier curriculum or artefact generation to save pennies — that guts the moat.
 
 ---
 
