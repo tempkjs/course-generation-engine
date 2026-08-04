@@ -21,6 +21,8 @@ Everything crosses a named seam. Never couple across one.
 
 1. UI ↔ Engine — `CourseEngine` (contracts/engine.ts). The website imports this. **Never**
    import engine internals into a UI; go through `modules/engine` public `index.ts`.
+   Engine exposes two public barrels — `@/modules/engine` (browser) and
+   `@/modules/engine/server` (server); see ADR 0010.
 2. Engine ↔ LLM — `LlmProvider`. Provider swappable. Keys **server-side only**.
 3. Engine ↔ Knowledge/RAG — `KnowledgeRetriever`/`KnowledgeWriter`. Cache is the moat,
    **server-side only**, **domain-scoped** (never person-scoped — see reuse policy).
