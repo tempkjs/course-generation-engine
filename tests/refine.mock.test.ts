@@ -124,7 +124,11 @@ describe("refineCurriculum + approveCurriculum (AI_MODE=mock)", () => {
 
     await engine.approveCurriculum(c.id);
     const artefacts = await engine.generateArtefacts(c.id, ["textual"], style);
-    expect(artefacts).toHaveLength(1);
-    expect(artefacts[0]!.type).toBe("textual");
+    // One artefact per lesson (M3: generateArtefacts is now real, per-lesson content — see
+    // tests/artefacts.mock.test.ts for the full lesson x type coverage this gate test isn't
+    // trying to duplicate).
+    const lessonCount = c.modules.reduce((n, m) => n + m.lessons.length, 0);
+    expect(artefacts).toHaveLength(lessonCount);
+    expect(artefacts.every((a) => a.type === "textual")).toBe(true);
   });
 });
