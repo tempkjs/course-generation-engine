@@ -1,4 +1,4 @@
-import type { Course } from '@/contracts';
+import type { Course } from "@/contracts";
 
 // Seam-4 mock: a PROCESS-LEVEL in-memory course store, shared by every CourseEngine
 // instance in this process (Mock and Live alike). `getCourseEngine()` (application/

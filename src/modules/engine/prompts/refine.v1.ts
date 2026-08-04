@@ -1,10 +1,10 @@
 // Refine-loop 'regenerate' prompt — versioned per prompt-governance rule (never edited in
 // place). A new behaviour is a new prompt version (refine.v2.ts, ...), not an edit to this file.
 
-export const REFINE_PROMPT_VERSION = 'refine.v1';
+export const REFINE_PROMPT_VERSION = "refine.v1";
 
 export interface RefineContext {
-  kind: 'module' | 'lesson';
+  kind: "module" | "lesson";
   courseTitle: string;
   field: string;
   currentTitle: string;
@@ -15,12 +15,12 @@ export interface RefineContext {
 
 export function buildRefinePrompt(ctx: RefineContext): string {
   const currentState =
-    ctx.kind === 'module'
-      ? `Current summary: ${ctx.currentSummary ?? '(none)'}`
+    ctx.kind === "module"
+      ? `Current summary: ${ctx.currentSummary ?? "(none)"}`
       : `Current objectives: ${JSON.stringify(ctx.currentObjectives ?? [])}`;
 
   const responseShape =
-    ctx.kind === 'module'
+    ctx.kind === "module"
       ? `{ "title": "string", "summary": "string" }`
       : `{ "title": "string", "objectives": ["string", "..."] }`;
 
@@ -36,7 +36,7 @@ ${currentState}
 ${
   ctx.instruction
     ? `Practitioner instruction: ${ctx.instruction}`
-    : 'No specific instruction was given — produce a meaningfully improved, field-appropriate revision (sharper title, better-scoped content) rather than a trivial rewording.'
+    : "No specific instruction was given — produce a meaningfully improved, field-appropriate revision (sharper title, better-scoped content) rather than a trivial rewording."
 }
 
 Return ONLY a single JSON object — no markdown code fences, no commentary before or after —

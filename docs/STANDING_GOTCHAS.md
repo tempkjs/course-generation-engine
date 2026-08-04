@@ -5,7 +5,7 @@ A short, append-only log of non-obvious traps. Add to it whenever something surp
 - **YouTube "Private" can't be embedded; "Unlisted" can** — relevant only when the real
   video socket lands in the LMS layer, not here. Noted so it isn't rediscovered.
 - **Honed ≠ portable (CareerAsana reuse):** clean code makes a mis-scoped assumption
-  *more* invisible. Run the Appendix-A litmus before any verbatim copy.
+  _more_ invisible. Run the Appendix-A litmus before any verbatim copy.
 - **AI_MODE leakage:** if a test needs a network call, it's testing the wrong layer —
   the seam's mock is missing or being bypassed. Fix the mock, don't loosen the test.
 - **Source vs Build:** a `Course` references `KnowledgeUnit`s; it must never mutate them.
@@ -17,10 +17,10 @@ A short, append-only log of non-obvious traps. Add to it whenever something surp
   **Resolved (milestone 1) — and it had to be ALL four methods, not just generateCurriculum:**
   a first pass left `refineCurriculum`/`generateArtefacts`/`commitToCache` calling
   `getCourseEngine()` in-process "since they don't touch secrets." That was wrong — merely
-  *importing* `../application/orchestrator` from `client.ts` pulls in `LiveCourseEngine` ->
+  _importing_ `../application/orchestrator` from `client.ts` pulls in `LiveCourseEngine` ->
   `AnthropicLlmProvider` -> the Anthropic SDK -> `node:fs`/`node:path` for the **whole static
   import graph**, and `pnpm build` failed on `UnhandledSchemeError` even though no live code
-  ever ran. Webpack bundles what's *imported*, not what's *reached at runtime*. Fix:
+  ever ran. Webpack bundles what's _imported_, not what's _reached at runtime_. Fix:
   `CourseEngineClient` now has zero imports from engine internals — all four methods are
   thin `fetch()` wrappers over server-only `/api/*` route handlers
   (`generate-curriculum`, `refine-curriculum`, `generate-artefacts`, `commit-to-cache`),
@@ -33,7 +33,7 @@ A short, append-only log of non-obvious traps. Add to it whenever something surp
   Fixed by moving draft state to a process-level module singleton
   (`src/modules/engine/infrastructure/courseStore.ts`, the Seam-4 mock) that every engine
   instance reads/writes. **Verified for real, not just by test-file coincidence:** `AI_MODE=mock
-  pnpm build && pnpm start`, then four separate `curl` processes against `/api/generate-curriculum`
+pnpm build && pnpm start`, then four separate `curl` processes against `/api/generate-curriculum`
   → `/api/refine-curriculum` → `/api/approve-curriculum` → `/api/generate-artefacts` (plus a
   `generateArtefacts` call before approval to confirm it 500s). All four request boundaries saw
   the same course. A same-process Vitest `engine` variable reused across calls would NOT have

@@ -7,12 +7,14 @@ teaching-style-conditioned artefacts) and grows a compounding **domain knowledge
 `src/app` harness is a disposable tool for verifying features against the real seam.
 
 ## Read first
+
 - **`CLAUDE.md`** — how the AI team works; the invariants. Every session reads this first.
 - **`docs/integration-contract.md`** — the boundary map (six seams, data contracts, the
   CareerAsana reuse policy in Appendix A). This is the architect.
 - **`docs/ENGINEERING_HANDBOOK.md`** / **`docs/CONTRIBUTING.md`** — conventions & workflow.
 
 ## Quick start
+
 ```bash
 pnpm install
 cp .env.example .env.local     # AI_MODE=mock — no keys, no network
@@ -21,6 +23,7 @@ pnpm dev                       # harness at http://localhost:3000/harness
 ```
 
 ## Shape
+
 ```
 src/contracts/        the jig — shared types + the six seam interfaces (import via @/contracts)
 src/modules/
@@ -34,6 +37,7 @@ src/app/              DISPOSABLE Next.js verification harness (not production UI
 ```
 
 ## Rules that matter most
+
 1. UIs import **only** `@/modules/engine` (the `CourseEngineClient`) — never engine internals.
    The real website imports that same client. Plug-and-play.
 2. Modules import each other **only** through `index.ts` (CI-enforced).

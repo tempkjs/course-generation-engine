@@ -1,10 +1,22 @@
-import 'server-only';
-import type { CourseEngine, GenerateRequest, Edit, Course, Artefact, ArtefactType, StyleProfile } from '@/contracts';
-import { getLlmProvider } from '@/modules/llm';
-import { buildCurriculumPrompt } from '../prompts/curriculum.v1';
-import { assertApprovable, assertValidatedForArtefacts, parseCurriculumResponse } from '../domain/curriculum';
-import { refineCourse } from '../application/refine';
-import { getCourse, putCourse, requireCourse } from './courseStore';
+import "server-only";
+import type {
+  CourseEngine,
+  GenerateRequest,
+  Edit,
+  Course,
+  Artefact,
+  ArtefactType,
+  StyleProfile,
+} from "@/contracts";
+import { getLlmProvider } from "@/modules/llm";
+import { buildCurriculumPrompt } from "../prompts/curriculum.v1";
+import {
+  assertApprovable,
+  assertValidatedForArtefacts,
+  parseCurriculumResponse,
+} from "../domain/curriculum";
+import { refineCourse } from "../application/refine";
+import { getCourse, putCourse, requireCourse } from "./courseStore";
 
 // AI_MODE=live CourseEngine: Phase 1 (generateCurriculum) and the refine loop compose the
 // real LLM provider; Phase 2 (generateArtefacts) proves the approval gate opens but returns
@@ -27,20 +39,29 @@ export class LiveCourseEngine implements CourseEngine {
   async approveCurriculum(courseId: string): Promise<Course> {
     const course = requireCourse(courseId);
     assertApprovable(course);
-    return putCourse({ ...course, status: 'validated' });
+    return putCourse({ ...course, status: "validated" });
   }
 
-  async generateArtefacts(courseId: string, prefs: ArtefactType[], _style: StyleProfile): Promise<Artefact[]> {
+  async generateArtefacts(
+    courseId: string,
+    prefs: ArtefactType[],
+    _style: StyleProfile,
+  ): Promise<Artefact[]> {
     assertValidatedForArtefacts(getCourse(courseId));
     // Phase 2 content generation is out of scope for this milestone — this stub proves the
     // approval gate opens without paying for real artefact generation. See ADR 0004.
     return prefs.map((type, i) => ({
-      id: `${courseId}-art-${i}`, type, contentRef: `live-stub://${courseId}/${type}`,
-      generatedBy: 'engine', approved: false,
+      id: `${courseId}-art-${i}`,
+      type,
+      contentRef: `live-stub://${courseId}/${type}`,
+      generatedBy: "engine",
+      approved: false,
     }));
   }
 
   async commitToCache(_courseId: string): Promise<void> {
-    throw new Error('LiveCourseEngine.commitToCache is not yet implemented (later milestone).');
+    throw new Error(
+      "LiveCourseEngine.commitToCache is not yet implemented (later milestone).",
+    );
   }
 }

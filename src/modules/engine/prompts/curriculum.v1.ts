@@ -1,8 +1,8 @@
 // Phase-1 curriculum prompt — versioned per prompt-governance rule (never edited in place).
 // A new behaviour is a new prompt version (curriculum.v2.ts, ...), not an edit to this file.
-import type { GenerateRequest } from '@/contracts';
+import type { GenerateRequest } from "@/contracts";
 
-export const CURRICULUM_PROMPT_VERSION = 'curriculum.v1';
+export const CURRICULUM_PROMPT_VERSION = "curriculum.v1";
 
 export function buildCurriculumPrompt(req: GenerateRequest): string {
   return `You are an experienced learning & development (L&D) manager who has designed
@@ -24,10 +24,10 @@ Course request:
 - Topic: ${req.topic}
 - Field: ${req.field}
 - Level: ${req.level}
-- Audience experience: ${req.audienceExperience || 'not specified'}
+- Audience experience: ${req.audienceExperience || "not specified"}
 - Duration: ${req.durationWeeks} week(s)
 - Cadence: ${req.cadence}
-- Practitioner teaching style — tone: ${req.style.tone}; depth: ${req.style.depth}; preferred modalities: ${req.style.modalities.join(', ') || 'unspecified'}
+- Practitioner teaching style — tone: ${req.style.tone}; depth: ${req.style.depth}; preferred modalities: ${req.style.modalities.join(", ") || "unspecified"}
 
 Structure the curriculum into modules and lessons:
 - Size the number of modules to the ${req.durationWeeks}-week duration — roughly one module

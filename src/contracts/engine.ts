@@ -1,5 +1,14 @@
 // Seam 1 — UI <-> Engine. The website imports this. The only way in.
-import type { Course, StyleProfile, ArtefactType, Artefact, Field, Level, CadenceTemplate, SpineNode } from './data';
+import type {
+  Course,
+  StyleProfile,
+  ArtefactType,
+  Artefact,
+  Field,
+  Level,
+  CadenceTemplate,
+  SpineNode,
+} from "./data";
 
 export interface GenerateRequest {
   topic: string;
@@ -13,15 +22,19 @@ export interface GenerateRequest {
 }
 
 export type Edit =
-  | { op: 'add'; parentId: string; node: Partial<SpineNode> }
-  | { op: 'remove'; nodeId: string }
-  | { op: 'update'; nodeId: string; patch: Partial<SpineNode> }
-  | { op: 'regenerate'; nodeId: string; instruction?: string };
+  | { op: "add"; parentId: string; node: Partial<SpineNode> }
+  | { op: "remove"; nodeId: string }
+  | { op: "update"; nodeId: string; patch: Partial<SpineNode> }
+  | { op: "regenerate"; nodeId: string; instruction?: string };
 
 export interface CourseEngine {
-  generateCurriculum(req: GenerateRequest): Promise<Course>;               // generating -> draft
-  refineCurriculum(courseId: string, edits: Edit[]): Promise<Course>;      // add/remove/update/regenerate loop
-  approveCurriculum(courseId: string): Promise<Course>;                    // draft -> validated (ADR 0009)
-  generateArtefacts(courseId: string, prefs: ArtefactType[], style: StyleProfile): Promise<Artefact[]>;
-  commitToCache(courseId: string): Promise<void>;                          // flywheel — SERVER-SIDE ONLY
+  generateCurriculum(req: GenerateRequest): Promise<Course>; // generating -> draft
+  refineCurriculum(courseId: string, edits: Edit[]): Promise<Course>; // add/remove/update/regenerate loop
+  approveCurriculum(courseId: string): Promise<Course>; // draft -> validated (ADR 0009)
+  generateArtefacts(
+    courseId: string,
+    prefs: ArtefactType[],
+    style: StyleProfile,
+  ): Promise<Artefact[]>;
+  commitToCache(courseId: string): Promise<void>; // flywheel — SERVER-SIDE ONLY
 }

@@ -3,6 +3,7 @@
 **Status:** Accepted (contract v0.4)
 
 ## Context
+
 ADR 0004 established the two-phase generation gate: `generateArtefacts` (Phase 2) is forbidden
 unless `course.status === 'validated'`. Milestone 1 shipped Phase 1 (`generateCurriculum`) and a
 partial `refineCurriculum` (remove only, mock-only). Nothing in the contract let a practitioner
@@ -16,6 +17,7 @@ transition with its own audit/analytics meaning — see Seam 6 `artefact_approve
 deferred), not another edit op.
 
 ## Decision
+
 Add one method to `CourseEngine`:
 
 ```ts
@@ -24,7 +26,7 @@ approveCurriculum(courseId: string): Promise<Course>; // draft -> validated
 
 - Asserts the course is `draft` (via the existing `canTransition` ladder guard — no new transition
   logic; `draft → validated` was already the next step in `generating → draft → validated →
-  published`).
+published`).
 - Persists the transitioned course and returns it.
 - Implemented identically on `MockCourseEngine` and `LiveCourseEngine` — the check and the ladder
   are the same regardless of `AI_MODE`; only Phase 1/2 generation differ mock-vs-live.
@@ -37,6 +39,7 @@ This is the one contract change in Milestone 2. Bumps the integration contract t
 seam signatures, not additive config/env changes — see the v0.3 changelog entry / ADR 0008).
 
 ## Consequences
+
 - The human-approval half of the two-phase gate (ADR 0004) is now real: `generateArtefacts` throws
   before this call and succeeds after, provably, not just by convention.
 - Draft persistence had to become process-level (not per-`CourseEngine`-instance) for this to work
@@ -45,5 +48,6 @@ seam signatures, not additive config/env changes — see the v0.3 changelog entr
 - No new seam was introduced — this is Seam 1 only. Seams 2/3/5/6 are untouched.
 
 ## Open items
+
 - Re-opening an already-`validated` course for further edits (`validated → draft`, or a separate
   edit-after-approval path) is not modelled — out of scope for M2, flag if the website needs it.

@@ -2,23 +2,26 @@
 // edits. Shared by MockCourseEngine and LiveCourseEngine — AI_MODE decides which LlmProvider
 // getLlmProvider() resolves to (MockLlmProvider vs AnthropicLlmProvider); this file doesn't
 // know or care, which is the point of Seam 2.
-import type { Course, Edit } from '@/contracts';
-import { getLlmProvider } from '@/modules/llm';
-import { buildRefinePrompt } from '../prompts/refine.v1';
+import type { Course, Edit } from "@/contracts";
+import { getLlmProvider } from "@/modules/llm";
+import { buildRefinePrompt } from "../prompts/refine.v1";
 import {
   applyEdits,
   applyRegeneratedNode,
   assertDraftForRefine,
   findRefineTarget,
   parseRefineResponse,
-} from '../domain/curriculum';
+} from "../domain/curriculum";
 
-export async function refineCourse(course: Course, edits: Edit[]): Promise<Course> {
+export async function refineCourse(
+  course: Course,
+  edits: Edit[],
+): Promise<Course> {
   assertDraftForRefine(course);
 
   let next = course;
   for (const edit of edits) {
-    if (edit.op !== 'regenerate') {
+    if (edit.op !== "regenerate") {
       next = applyEdits(next, [edit]);
       continue;
     }

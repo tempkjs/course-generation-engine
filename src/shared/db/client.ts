@@ -1,6 +1,6 @@
 // Supabase client factory. Server-side usage for engine/cache; browser gets anon-only.
 // NOTE: real @supabase/supabase-js wiring lands in live mode. Mock mode needs no client.
-import { getConfig } from '@/shared/config';
+import { getConfig } from "@/shared/config";
 
 export function hasDbConfigured(): boolean {
   const c = getConfig();
