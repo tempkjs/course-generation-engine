@@ -25,3 +25,16 @@ A short, append-only log of non-obvious traps. Add to it whenever something surp
   thin `fetch()` wrappers over server-only `/api/*` route handlers
   (`generate-curriculum`, `refine-curriculum`, `generate-artefacts`, `commit-to-cache`),
   each calling `getCourseEngine()` only inside the route handler (never bundled client-side).
+- **Per-instance engine state does not survive across requests (milestone 2):** `getCourseEngine()`
+  returns a NEW `MockCourseEngine`/`LiveCourseEngine` per call, so a `Map` kept on `this` (as
+  `MockCourseEngine` had through M1) is gone by the next HTTP request — fine for a single
+  in-process test that holds one `engine` reference across calls, silently broken for the real
+  generate → refine → approve → generateArtefacts session, which is four separate requests.
+  Fixed by moving draft state to a process-level module singleton
+  (`src/modules/engine/infrastructure/courseStore.ts`, the Seam-4 mock) that every engine
+  instance reads/writes. **Verified for real, not just by test-file coincidence:** `AI_MODE=mock
+  pnpm build && pnpm start`, then four separate `curl` processes against `/api/generate-curriculum`
+  → `/api/refine-curriculum` → `/api/approve-curriculum` → `/api/generate-artefacts` (plus a
+  `generateArtefacts` call before approval to confirm it 500s). All four request boundaries saw
+  the same course. A same-process Vitest `engine` variable reused across calls would NOT have
+  caught the original per-instance bug, which is why this needed an actual separate-process check.

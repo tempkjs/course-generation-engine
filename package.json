@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "AI_MODE=mock vitest run",
-    "test:live": "AI_MODE=live vitest run tests/live.curriculum.test.ts",
+    "test:live": "AI_MODE=live vitest run tests/live.curriculum.test.ts tests/live.refine.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -27,6 +27,7 @@
     "eslint": "^9.0.0",
     "prettier": "^3.3.0",
     "typescript": "^5.6.0",
+    "typescript-eslint": "^8.66.0",
     "vitest": "^2.1.0"
   },
   "packageManager": "pnpm@9.0.0"
