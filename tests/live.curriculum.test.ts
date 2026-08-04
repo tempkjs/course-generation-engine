@@ -28,9 +28,10 @@ describe.skipIf(!isLive)('CourseEngine (AI_MODE=live) — cross-field credibilit
     for (const course of courses) {
       expect(course.status).toBe('draft');
       expect(course.modules.length).toBeGreaterThan(0);
-      // eslint-disable-next-line no-console
+      /* eslint-disable no-console -- diagnostic output for the manual cross-field check */
       console.log(`\n=== ${course.field}: ${course.title} ===`);
       console.log(JSON.stringify(course.modules.map((m) => m.title), null, 2));
+      /* eslint-enable no-console */
     }
 
     const titleSets = courses.map((c) => JSON.stringify(c.modules.map((m) => m.title)));

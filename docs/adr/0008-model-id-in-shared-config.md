@@ -1,6 +1,6 @@
 # ADR 0008 — Model id resolved via shared config, not hard-coded
 
-**Status:** Accepted (contract v0.4)
+**Status:** Accepted (contract v0.3, no bump — config/env addition)
 
 ## Context
 Milestone 1 wires a real `AnthropicLlmProvider` (Seam 2). ADR 0007 fixes a single

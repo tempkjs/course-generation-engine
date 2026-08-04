@@ -9,5 +9,5 @@ export default defineConfig({
       'server-only': fileURLToPath(new URL('./tests/support/server-only-shim.ts', import.meta.url)),
     },
   },
-  test: { environment: 'node', globals: true },
+  test: { environment: 'node', globals: true, setupFiles: ['./tests/support/load-env.ts'] },
 });
