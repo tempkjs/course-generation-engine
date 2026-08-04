@@ -139,6 +139,7 @@ The UI calls the engine **only through this interface**, fulfilled by a mock now
 interface CourseEngine {
   generateCurriculum(req: GenerateRequest): Promise<Course>;      // status: "generating" -> "draft"
   refineCurriculum(courseId: string, edits: Edit[]): Promise<Course>; // add/remove/update/regenerate loop
+  approveCurriculum(courseId: string): Promise<Course>;           // status: "draft" -> "validated" (ADR 0009)
   generateArtefacts(courseId: string, prefs: ArtefactType[], style: StyleProfile): Promise<Artefact[]>;
   commitToCache(courseId: string): Promise<void>;                 // flywheel write-back — SERVER-SIDE ONLY
 }
@@ -157,6 +158,10 @@ type Edit =
 
 - **Fulfilled by:** your engine line. **Consumed by:** the Bolt CMS line (mock now).
 - **Mock now:** a stub returning fixed/plausible drafts behind this exact interface. **Real later:** the orchestrator. The UI never changes.
+- **`approveCurriculum` (added v0.4, ADR 0009):** the human-gate half of the two-phase generation
+  invariant (B.1). Asserts the course is `draft`, transitions it to `validated` via the same
+  `canTransition` ladder guard used everywhere else, persists, and returns the `Course`. Only after
+  this call does `generateArtefacts` (Phase 2) become permitted — see invariant 3.
 
 ### Seam 2 — Engine ↔ LLM (swappable provider)
 
@@ -209,7 +214,7 @@ type DomainEvent =
 3. **Generated content never lands directly in course rows, and Phase 2 is gated on approval.** Content flows through the status ladder `generating → draft → validated → published`; states are never skipped. **`generateArtefacts` (Phase 2, the detailed course) is forbidden unless `course.status === 'validated'`** — the practitioner must approve the curriculum first (see Appendix B.1).
 4. **SOURCE (cache) and BUILD (course) are separate stores; the cache is read-mostly.** A course references source units; it never mutates them. At MVP there is **no live write-back** of practitioner-edited curricula into substrates — `KnowledgeWriter` is a curation/authoring path only (see Appendix B.2). The flywheel door is left open but deferred.
 5. **Every bought component sits behind its adapter/interface** (LLM provider, RAG infra, LMS). Swapping any of them touches neither the UI nor the engine core.
-6. **Contracts are versioned and evolve additively.** Add fields; don't repurpose or remove them. Bump `Contract version` on change.
+6. **Contracts are versioned and evolve additively.** Add fields; don't repurpose or remove them. Bump `Contract version` on change. The version tracks seam-signature changes only; additive config/env changes are recorded in the changelog without a bump.
 7. **The app links out to the LMS; it never becomes the LMS.** No auth/payments/enrolment/student-DB built on the owned lines — that's the drift signal; stop.
 
 ---
@@ -291,7 +296,9 @@ The v0.3 decisions, captured coherently. These refine *how* the engine generates
 Generation is **two distinct, separately-costed operations with a human gate between them:**
 
 1. **Phase 1 — curriculum draft** (structure, module/lesson titles, objectives). Lighter generation.
-2. **Human gate** — the practitioner adds / removes / (future: edits) / **approves**. On approval, status moves `draft → validated`.
+2. **Human gate** — the practitioner iterates via `refineCurriculum` (add / remove / update / regenerate,
+   permitted only while `status === 'draft'`) then calls **`approveCurriculum(courseId)`** (v0.4, ADR
+   0009). On approval, status moves `draft → validated`.
 3. **Phase 2 — detailed course** (artefacts per lesson, style-conditioned). Heavy, high-token generation.
 
 **Invariant:** `generateArtefacts` (Phase 2) is **forbidden unless `course.status === 'validated'`.** The status ladder is enforced, not conventional. *Rationale:* this puts the expensive work behind human approval — cost control and quality control in one gate. You never pay the big generation for a curriculum the practitioner was going to reshape.
@@ -326,7 +333,15 @@ Generation is **two distinct, separately-costed operations with a human gate bet
 
 ## Changelog
 
-- **v0.4** — Additive: `EngineConfig` (`src/contracts/config.ts`) gained `anthropicModel: string`, resolved in `src/shared/config.ts` from `ANTHROPIC_MODEL` (default `claude-sonnet-5`). No seam signature changed; see ADR 0008. Milestone: live Phase-1 curriculum generation (Seam 1 `LiveCourseEngine` + Seam 2 `AnthropicLlmProvider`).
+- **v0.4** — Seam-signature change: `CourseEngine` (Seam 1) gained `approveCurriculum(courseId: string):
+  Promise<Course>`, the human-gate half of the two-phase generation invariant — see ADR 0009 and Appendix
+  B.1. `refineCurriculum` is now implemented for all four `Edit` ops (`add`/`remove`/`update` structural
+  via the domain layer; `regenerate` via `LlmProvider` + the versioned `prompts/refine.v1.ts` asset) and
+  is permitted only on a `draft` course. Draft persistence across the generate → refine → approve →
+  generateArtefacts call sequence is backed by a process-level in-memory course store (the Seam-4 mock;
+  see `src/modules/engine/infrastructure/courseStore.ts`) — real Supabase replaces it later behind the
+  same shape. No other seam signature changed.
+- **v0.3** — Config/env change (no bump): `EngineConfig` (`src/contracts/config.ts`) gained `anthropicModel: string`, resolved in `src/shared/config.ts` from `ANTHROPIC_MODEL` (default `claude-sonnet-5`). No seam signature changed; see ADR 0008. Milestone: live Phase-1 curriculum generation (Seam 1 `LiveCourseEngine` + Seam 2 `AnthropicLlmProvider`).
 
 ---
 

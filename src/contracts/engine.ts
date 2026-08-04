@@ -20,7 +20,8 @@ export type Edit =
 
 export interface CourseEngine {
   generateCurriculum(req: GenerateRequest): Promise<Course>;               // generating -> draft
-  refineCurriculum(courseId: string, edits: Edit[]): Promise<Course>;      // validate/regenerate loop
+  refineCurriculum(courseId: string, edits: Edit[]): Promise<Course>;      // add/remove/update/regenerate loop
+  approveCurriculum(courseId: string): Promise<Course>;                    // draft -> validated (ADR 0009)
   generateArtefacts(courseId: string, prefs: ArtefactType[], style: StyleProfile): Promise<Artefact[]>;
   commitToCache(courseId: string): Promise<void>;                          // flywheel — SERVER-SIDE ONLY
 }
