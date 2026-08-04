@@ -1,10 +1,13 @@
 import type { CourseEngine, GenerateRequest, Edit, Course, Artefact, ArtefactType, StyleProfile } from '@/contracts';
-import { applyEdits, assertValidatedForArtefacts } from '../domain/curriculum';
-// AI_MODE=mock CourseEngine: deterministic, no external calls, but a REAL structured draft
-// through the REAL interface — so the harness (and later the website) exercise the true seam.
+import { assertApprovable, assertValidatedForArtefacts } from '../domain/curriculum';
+import { refineCourse } from '../application/refine';
+import { getCourse, putCourse, requireCourse } from './courseStore';
+// AI_MODE=mock CourseEngine: deterministic Phase 1 (no external calls), but a REAL structured
+// draft through the REAL interface — so the harness (and later the website) exercise the true
+// seam. Draft state lives in the shared process-level courseStore (Seam-4 mock), not on `this`
+// — getCourseEngine() returns a new instance per call, so per-instance state would not survive
+// across the separate generate/refine/approve/generateArtefacts HTTP requests.
 export class MockCourseEngine implements CourseEngine {
-  private courses = new Map<string, Course>();
-
   async generateCurriculum(req: GenerateRequest): Promise<Course> {
     const id = `course-${req.topic.toLowerCase().replace(/\s+/g, '-')}`;
     const course: Course = {
@@ -20,22 +23,19 @@ export class MockCourseEngine implements CourseEngine {
         }],
       })),
     };
-    this.courses.set(id, course);
-    return course;
+    return putCourse(course);
   }
   async refineCurriculum(courseId: string, edits: Edit[]): Promise<Course> {
-    const base = this.courses.get(courseId) ?? await this.generateCurriculum({
-      topic: courseId.replace(/^course-/, '').replace(/-/g, ' '),
-      field: 'software', level: 'medium', audienceExperience: '', durationWeeks: 5,
-      cadence: 'weekend-2x2', practitionerId: 'p-mock',
-      style: { practitionerId: 'p-mock', modalities: ['textual'], tone: 'plain', depth: 'working' },
-    });
-    const after = applyEdits(base, edits);
-    this.courses.set(courseId, after);
-    return after;
+    const after = await refineCourse(requireCourse(courseId), edits);
+    return putCourse(after);
+  }
+  async approveCurriculum(courseId: string): Promise<Course> {
+    const course = requireCourse(courseId);
+    assertApprovable(course);
+    return putCourse({ ...course, status: 'validated' });
   }
   async generateArtefacts(courseId: string, prefs: ArtefactType[], _style: StyleProfile): Promise<Artefact[]> {
-    assertValidatedForArtefacts(this.courses.get(courseId));
+    assertValidatedForArtefacts(getCourse(courseId));
     return prefs.map((type, i) => ({
       id: `${courseId}-art-${i}`, type, contentRef: `mock://${courseId}/${type}`,
       generatedBy: 'engine', approved: false,

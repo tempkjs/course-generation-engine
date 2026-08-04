@@ -25,6 +25,9 @@ export class CourseEngineClient implements CourseEngine {
   refineCurriculum(courseId: string, edits: Edit[]): Promise<Course> {
     return postJson<Course>('/api/refine-curriculum', { courseId, edits });
   }
+  approveCurriculum(courseId: string): Promise<Course> {
+    return postJson<Course>('/api/approve-curriculum', { courseId });
+  }
   generateArtefacts(courseId: string, prefs: ArtefactType[], style: StyleProfile): Promise<Artefact[]> {
     return postJson<Artefact[]>('/api/generate-artefacts', { courseId, prefs, style });
   }
