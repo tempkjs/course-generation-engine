@@ -12,12 +12,15 @@ import {
   assertValidatedForArtefacts,
 } from "../domain/curriculum";
 import { refineCourse } from "../application/refine";
+import { generateArtefactsForCourse } from "../application/generateArtefacts";
 import { getCourse, putCourse, requireCourse } from "./courseStore";
-// AI_MODE=mock CourseEngine: deterministic Phase 1 (no external calls), but a REAL structured
-// draft through the REAL interface — so the harness (and later the website) exercise the true
-// seam. Draft state lives in the shared process-level courseStore (Seam-4 mock), not on `this`
-// — getCourseEngine() returns a new instance per call, so per-instance state would not survive
-// across the separate generate/refine/approve/generateArtefacts HTTP requests.
+// AI_MODE=mock CourseEngine: deterministic, no external network calls (Phase 1 is synthetic;
+// Phase 2 goes through MockLlmProvider — still no network, just canned strings), but a REAL
+// structured draft/artefact set through the REAL interface — so the harness (and later the
+// website) exercise the true seam. Draft state lives in the shared process-level courseStore
+// (Seam-4 mock), not on `this` — getCourseEngine() returns a new instance per call, so
+// per-instance state would not survive across the separate generate/refine/approve/
+// generateArtefacts HTTP requests.
 export class MockCourseEngine implements CourseEngine {
   async generateCurriculum(req: GenerateRequest): Promise<Course> {
     const id = `course-${req.topic.toLowerCase().replace(/\s+/g, "-")}`;
@@ -63,16 +66,17 @@ export class MockCourseEngine implements CourseEngine {
   async generateArtefacts(
     courseId: string,
     prefs: ArtefactType[],
-    _style: StyleProfile,
+    style: StyleProfile,
   ): Promise<Artefact[]> {
-    assertValidatedForArtefacts(getCourse(courseId));
-    return prefs.map((type, i) => ({
-      id: `${courseId}-art-${i}`,
-      type,
-      contentRef: `mock://${courseId}/${type}`,
-      generatedBy: "engine",
-      approved: false,
-    }));
+    const course = getCourse(courseId);
+    assertValidatedForArtefacts(course);
+    const { course: updated, artefacts } = await generateArtefactsForCourse(
+      course,
+      prefs,
+      style,
+    );
+    putCourse(updated);
+    return artefacts;
   }
   async commitToCache(_courseId: string): Promise<void> {
     /* mock: no-op flywheel write */

@@ -16,13 +16,13 @@ import {
   parseCurriculumResponse,
 } from "../domain/curriculum";
 import { refineCourse } from "../application/refine";
+import { generateArtefactsForCourse } from "../application/generateArtefacts";
 import { getCourse, putCourse, requireCourse } from "./courseStore";
 
-// AI_MODE=live CourseEngine: Phase 1 (generateCurriculum) and the refine loop compose the
-// real LLM provider; Phase 2 (generateArtefacts) proves the approval gate opens but returns
-// placeholder content — real artefact generation is a later milestone. Draft state lives in
-// the shared process-level courseStore (Seam-4 mock) — see engineMock.ts for why per-instance
-// state doesn't survive across separate HTTP requests.
+// AI_MODE=live CourseEngine: Phase 1 (generateCurriculum), the refine loop, and Phase 2
+// (generateArtefacts) all compose the real LLM provider. Draft state lives in the shared
+// process-level courseStore (Seam-4 mock) — see engineMock.ts for why per-instance state
+// doesn't survive across separate HTTP requests.
 export class LiveCourseEngine implements CourseEngine {
   async generateCurriculum(req: GenerateRequest): Promise<Course> {
     const llm = getLlmProvider();
@@ -45,18 +45,17 @@ export class LiveCourseEngine implements CourseEngine {
   async generateArtefacts(
     courseId: string,
     prefs: ArtefactType[],
-    _style: StyleProfile,
+    style: StyleProfile,
   ): Promise<Artefact[]> {
-    assertValidatedForArtefacts(getCourse(courseId));
-    // Phase 2 content generation is out of scope for this milestone — this stub proves the
-    // approval gate opens without paying for real artefact generation. See ADR 0004.
-    return prefs.map((type, i) => ({
-      id: `${courseId}-art-${i}`,
-      type,
-      contentRef: `live-stub://${courseId}/${type}`,
-      generatedBy: "engine",
-      approved: false,
-    }));
+    const course = getCourse(courseId);
+    assertValidatedForArtefacts(course);
+    const { course: updated, artefacts } = await generateArtefactsForCourse(
+      course,
+      prefs,
+      style,
+    );
+    putCourse(updated);
+    return artefacts;
   }
 
   async commitToCache(_courseId: string): Promise<void> {

@@ -14,7 +14,9 @@ export function canTransition(from: CourseStatus, to: CourseStatus): boolean {
 }
 
 /** ADR 0004 / invariant 3: generateArtefacts (Phase 2) is forbidden pre-approval. */
-export function assertValidatedForArtefacts(course: Course | undefined): void {
+export function assertValidatedForArtefacts(
+  course: Course | undefined,
+): asserts course is Course {
   if (!course || course.status !== "validated") {
     throw new Error(
       `generateArtefacts is forbidden unless course.status === 'validated' (ADR 0004) — got '${course?.status ?? "unknown course"}'`,
