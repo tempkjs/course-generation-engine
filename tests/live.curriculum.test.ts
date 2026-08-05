@@ -2,6 +2,8 @@
 //   ANTHROPIC_API_KEY=... pnpm test:live
 import { describe, it, expect } from "vitest";
 import { getCourseEngine } from "@/modules/engine/server";
+import { getUsageTotals, resetUsageTotals } from "@/modules/llm";
+import { createValidationLog } from "./support/validationLog";
 
 const isLive = process.env.AI_MODE === "live";
 
@@ -15,6 +17,8 @@ describe.skipIf(!isLive)(
     ];
 
     it("produces credible, distinct, field-appropriate curricula", async () => {
+      const { log, path } = createValidationLog("live-curriculum");
+      resetUsageTotals();
       const engine = getCourseEngine();
       const courses = await Promise.all(
         requests.map(({ topic, field }) =>
@@ -39,22 +43,26 @@ describe.skipIf(!isLive)(
       for (const course of courses) {
         expect(course.status).toBe("draft");
         expect(course.modules.length).toBeGreaterThan(0);
-        /* eslint-disable no-console -- diagnostic output for the manual cross-field check */
-        console.log(`\n=== ${course.field}: ${course.title} ===`);
-        console.log(
+        log(`\n=== ${course.field}: ${course.title} ===`);
+        log(
           JSON.stringify(
             course.modules.map((m) => m.title),
             null,
             2,
           ),
         );
-        /* eslint-enable no-console */
       }
 
       const titleSets = courses.map((c) =>
         JSON.stringify(c.modules.map((m) => m.title)),
       );
       expect(new Set(titleSets).size).toBe(titleSets.length); // distinct across fields
+
+      const usage = getUsageTotals();
+      log(
+        `\n=== usage: ${usage.calls} calls, ${usage.inputTokens} input tokens, ${usage.outputTokens} output tokens ===`,
+      );
+      log(`\n=== validation output written to: ${path} ===`);
     }, 120_000);
   },
 );

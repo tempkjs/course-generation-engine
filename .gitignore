@@ -18,3 +18,6 @@ out/
 
 # Test/coverage
 coverage/
+
+# Live-run validation output (ADR 0015) — durable on disk for a human to read, not committed
+validation-output/

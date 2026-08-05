@@ -6,6 +6,8 @@ import {
   getCourse,
   getCourseEngine,
 } from "@/modules/engine/server";
+import { getUsageTotals, resetUsageTotals } from "@/modules/llm";
+import { createValidationLog } from "./support/validationLog";
 import type { ArtefactType, StyleProfile } from "@/contracts";
 
 const isLive = process.env.AI_MODE === "live";
@@ -34,6 +36,8 @@ describe.skipIf(!isLive)(
   "CourseEngine (AI_MODE=live) — Phase 2 artefact generation",
   () => {
     it("generates real, style-conditioned textual + slide content for a lesson, and a visible style contrast on the SAME lesson", async () => {
+      const { log, path } = createValidationLog("live-artefacts");
+      resetUsageTotals();
       const engine = getCourseEngine();
       const draft = await engine.generateCurriculum({
         topic: "Giving Effective Feedback",
@@ -76,12 +80,8 @@ describe.skipIf(!isLive)(
       const textualA = latestArtefactContent(approved.id, lessonId, "textual");
       const slideA = latestArtefactContent(approved.id, lessonId, "slide");
 
-      /* eslint-disable no-console -- diagnostic output for the manual read-through */
-      console.log(
-        `\n=== textual — style A (plain / overview) ===\n${textualA}`,
-      );
-      console.log(`\n=== slide — style A (plain / overview) ===\n${slideA}`);
-      /* eslint-enable no-console */
+      log(`\n=== textual — style A (plain / overview) ===\n${textualA}`);
+      log(`\n=== slide — style A (plain / overview) ===\n${slideA}`);
 
       expect(textualA.length).toBeGreaterThan(0);
       expect(slideA.length).toBeGreaterThan(0);
@@ -99,10 +99,15 @@ describe.skipIf(!isLive)(
       await engine.generateArtefacts(approved.id, ["textual"], styleB);
       const textualB = latestArtefactContent(approved.id, lessonId, "textual");
 
-      // eslint-disable-next-line no-console -- diagnostic output for the manual read-through
-      console.log(`\n=== textual — style B (rigorous / deep) ===\n${textualB}`);
+      log(`\n=== textual — style B (rigorous / deep) ===\n${textualB}`);
 
       expect(textualB).not.toBe(textualA);
+
+      const usage = getUsageTotals();
+      log(
+        `\n=== usage: ${usage.calls} calls, ${usage.inputTokens} input tokens, ${usage.outputTokens} output tokens ===`,
+      );
+      log(`\n=== validation output written to: ${path} ===`);
     }, 180_000);
   },
 );
