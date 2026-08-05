@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { LlmProvider, GenOpts } from "@/contracts";
 import { getConfig, assertServerOnly } from "@/shared/config";
+import { recordUsage } from "./usageTracker";
 
 const DEFAULT_MAX_TOKENS = 8000;
 
@@ -33,6 +34,10 @@ export class AnthropicLlmProvider implements LlmProvider {
         : {}),
       messages: [{ role: "user", content: prompt }],
     });
+
+    // Recorded regardless of stop_reason — even a refused/empty response consumed real
+    // input tokens, and the whole point of ADR 0015 is an honest running total.
+    recordUsage(response.usage.input_tokens, response.usage.output_tokens);
 
     if (response.stop_reason === "refusal") {
       throw new Error(

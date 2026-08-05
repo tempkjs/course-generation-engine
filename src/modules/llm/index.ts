@@ -8,6 +8,13 @@ export type { LlmProvider };
 // precedent as ADR 0010/0011's engine-module barrel growth; getLlmProvider's AI_MODE
 // dispatch is unaffected.
 export { AnthropicLlmProvider };
+// Live-run token accounting (ADR 0015) — real Anthropic calls only; MockLlmProvider makes
+// no request and has nothing real to total. Exported for live tests to report per-run cost.
+export {
+  getUsageTotals,
+  resetUsageTotals,
+  type UsageTotals,
+} from "./infrastructure/usageTracker";
 export function getLlmProvider(): LlmProvider {
   return isLive() ? new AnthropicLlmProvider() : new MockLlmProvider();
 }
