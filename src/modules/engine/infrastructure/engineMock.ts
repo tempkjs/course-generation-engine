@@ -6,6 +6,7 @@ import type {
   Artefact,
   ArtefactType,
   StyleProfile,
+  GenerateArtefactsOpts,
 } from "@/contracts";
 import {
   assertApprovable,
@@ -67,6 +68,7 @@ export class MockCourseEngine implements CourseEngine {
     courseId: string,
     prefs: ArtefactType[],
     style: StyleProfile,
+    opts?: GenerateArtefactsOpts,
   ): Promise<Artefact[]> {
     const course = getCourse(courseId);
     assertValidatedForArtefacts(course);
@@ -74,6 +76,7 @@ export class MockCourseEngine implements CourseEngine {
       course,
       prefs,
       style,
+      opts?.lessonIds,
     );
     putCourse(updated);
     return artefacts;

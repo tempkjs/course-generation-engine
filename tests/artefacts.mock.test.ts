@@ -128,4 +128,57 @@ describe("generateArtefacts (AI_MODE=mock)", () => {
       );
     }
   });
+
+  it("opts.lessonIds scopes generation to just those lessons (ADR 0014)", async () => {
+    const { engine, approved } = await approvedCourse("artefacts-lesson-scope");
+    const lessonCount = lessonCountOf(approved);
+    expect(lessonCount).toBeGreaterThan(1); // otherwise this test proves nothing
+
+    const targetLesson = approved.modules[0]!.lessons[0]!;
+    const artefacts = await engine.generateArtefacts(
+      approved.id,
+      ["textual", "slide"],
+      style,
+      { lessonIds: [targetLesson.id] },
+    );
+    expect(artefacts).toHaveLength(2); // exactly this lesson x {textual, slide}
+
+    const persisted = getCourse(approved.id)!;
+    for (const module of persisted.modules) {
+      for (const lesson of module.lessons) {
+        if (lesson.id === targetLesson.id) {
+          expect(lesson.artefacts.map((a) => a.type).sort()).toEqual([
+            "slide",
+            "textual",
+          ]);
+        } else {
+          expect(lesson.artefacts).toHaveLength(0);
+        }
+      }
+    }
+  });
+
+  it("opts.lessonIds omitted still targets every lesson (unchanged default)", async () => {
+    const { engine, approved } = await approvedCourse(
+      "artefacts-lesson-scope-omitted",
+    );
+    const lessonCount = lessonCountOf(approved);
+
+    const artefacts = await engine.generateArtefacts(
+      approved.id,
+      ["textual"],
+      style,
+    );
+    expect(artefacts).toHaveLength(lessonCount);
+  });
+
+  it("opts.lessonIds === [] is a caller error, not a silent no-op", async () => {
+    const { engine, approved } = await approvedCourse("artefacts-empty-scope");
+
+    await expect(
+      engine.generateArtefacts(approved.id, ["textual"], style, {
+        lessonIds: [],
+      }),
+    ).rejects.toThrow(/lessonIds/);
+  });
 });

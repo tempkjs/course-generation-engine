@@ -14,6 +14,7 @@ import type {
   StyleProfile,
   Course,
   Artefact,
+  GenerateArtefactsOpts,
 } from "@/contracts";
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -41,11 +42,13 @@ export class CourseEngineClient implements CourseEngine {
     courseId: string,
     prefs: ArtefactType[],
     style: StyleProfile,
+    opts?: GenerateArtefactsOpts,
   ): Promise<Artefact[]> {
     return postJson<Artefact[]>("/api/generate-artefacts", {
       courseId,
       prefs,
       style,
+      opts,
     });
   }
   commitToCache(courseId: string): Promise<void> {

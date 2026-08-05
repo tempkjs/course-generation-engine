@@ -1,6 +1,10 @@
 # Swakojo Academy — Integration Contract & Architecture Boundaries
 
-**Status:** Decided — working reference · **Contract version:** v0.4
+**Status:** Decided — working reference · **Contract version:** v0.5
+
+> Canonical source: this file, in the repo. Any copy elsewhere is a dated snapshot, not
+> authoritative. (ADR 0016)
+
 **Sits under:** `SAKOS` (constitution) · **Sibling of:** `swakojo-academy-revenue-model.md`
 **Governs:** every assembly line that builds any part of the course generation engine.
 
@@ -180,8 +184,13 @@ interface CourseEngine {
     courseId: string,
     prefs: ArtefactType[],
     style: StyleProfile,
+    opts?: GenerateArtefactsOpts, // added v0.5, ADR 0014 — optional lesson scoping
   ): Promise<Artefact[]>;
   commitToCache(courseId: string): Promise<void>; // flywheel write-back — SERVER-SIDE ONLY
+}
+
+interface GenerateArtefactsOpts {
+  lessonIds?: string[]; // omitted => every lesson in the course; [] is an error
 }
 
 interface GenerateRequest {
@@ -207,6 +216,11 @@ type Edit =
   invariant (B.1). Asserts the course is `draft`, transitions it to `validated` via the same
   `canTransition` ladder guard used everywhere else, persists, and returns the `Course`. Only after
   this call does `generateArtefacts` (Phase 2) become permitted — see invariant 3.
+- **`generateArtefacts` lesson scoping (added v0.5, ADR 0014):** `opts.lessonIds` omitted generates
+  for every lesson in the course (the original, still-default behaviour); provided, it generates
+  only for those lessons — the practitioner-in-the-loop case of regenerating one lesson's material
+  without touching the rest. `opts.lessonIds === []` is a caller error (ambiguous — omit the option
+  entirely to mean "all lessons," never pass an empty list to mean "none").
 
 ### Seam 2 — Engine ↔ LLM (swappable provider)
 
@@ -401,6 +415,13 @@ Generation is **two distinct, separately-costed operations with a human gate bet
 
 ## Changelog
 
+- **v0.5** — Seam-signature change: `CourseEngine.generateArtefacts` (Seam 1) gained an optional
+  fourth parameter, `opts?: GenerateArtefactsOpts` with `lessonIds?: string[]`, so a caller can
+  regenerate artefacts for specific lessons instead of the whole course every time — see ADR 0014.
+  Backward compatible (omitted ⇒ prior whole-course behaviour, unchanged). Both `MockCourseEngine`
+  and `LiveCourseEngine` honour the scope. Also: this file now carries a canonical-source rule
+  directly under the version header (ADR 0016, no version impact of its own) — `docs/integration-
+contract.md` in the repo is the only living copy; any copy elsewhere is a dated snapshot.
 - **v0.4** — Seam-signature change: `CourseEngine` (Seam 1) gained `approveCurriculum(courseId: string):
 Promise<Course>`, the human-gate half of the two-phase generation invariant — see ADR 0009 and Appendix
   B.1. `refineCurriculum` is now implemented for all four `Edit` ops (`add`/`remove`/`update` structural

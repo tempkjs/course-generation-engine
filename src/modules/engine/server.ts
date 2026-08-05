@@ -13,4 +13,9 @@ import "server-only";
 export { getCourseEngine } from "./application/orchestrator";
 export { getCourse } from "./infrastructure/courseStore";
 export { getContent as getArtefactContent } from "./infrastructure/contentStore";
-export type { CourseEngine, GenerateRequest, Edit } from "@/contracts";
+export type {
+  CourseEngine,
+  GenerateRequest,
+  Edit,
+  GenerateArtefactsOpts,
+} from "@/contracts";

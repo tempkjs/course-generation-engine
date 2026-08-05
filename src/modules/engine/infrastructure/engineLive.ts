@@ -7,6 +7,7 @@ import type {
   Artefact,
   ArtefactType,
   StyleProfile,
+  GenerateArtefactsOpts,
 } from "@/contracts";
 import { getLlmProvider } from "@/modules/llm";
 import { buildCurriculumPrompt } from "../prompts/curriculum.v1";
@@ -46,6 +47,7 @@ export class LiveCourseEngine implements CourseEngine {
     courseId: string,
     prefs: ArtefactType[],
     style: StyleProfile,
+    opts?: GenerateArtefactsOpts,
   ): Promise<Artefact[]> {
     const course = getCourse(courseId);
     assertValidatedForArtefacts(course);
@@ -53,6 +55,7 @@ export class LiveCourseEngine implements CourseEngine {
       course,
       prefs,
       style,
+      opts?.lessonIds,
     );
     putCourse(updated);
     return artefacts;

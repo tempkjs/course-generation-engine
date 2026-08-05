@@ -29,8 +29,16 @@ export async function generateArtefactsForCourse(
   course: Course,
   prefs: ArtefactType[],
   style: StyleProfile,
+  lessonIds?: string[],
 ): Promise<GenerateArtefactsResult> {
-  const targets = planArtefactTargets(course, prefs);
+  // ADR 0014 (v0.5): omitted => every lesson (unchanged default); [] is a caller error —
+  // "regenerate nothing" is never what's meant, and silently no-op-ing would be confusing.
+  if (lessonIds && lessonIds.length === 0) {
+    throw new Error(
+      "generateArtefacts: opts.lessonIds was an empty array — omit opts.lessonIds entirely to target every lesson, or provide at least one lesson id",
+    );
+  }
+  const targets = planArtefactTargets(course, prefs, lessonIds);
 
   // Deterministic per-(lesson,type) numbering: seeded from artefacts already on the lesson
   // (so repeat generateArtefacts calls don't collide with earlier ones) and incremented as

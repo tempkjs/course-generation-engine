@@ -18,14 +18,22 @@ export interface ArtefactTarget {
   type: ArtefactType;
 }
 
-/** One target per (lesson x requested type), across every lesson in the course. */
+/**
+ * One target per (lesson x requested type). Every lesson in the course, unless `lessonIds`
+ * narrows it (ADR 0014, v0.5) — validating that `lessonIds` isn't an empty array is the
+ * application layer's job (a use-case/input-validation concern), not this pure planner's;
+ * an empty `lessonIds` here just produces zero targets, same as any other filter.
+ */
 export function planArtefactTargets(
   course: Course,
   prefs: ArtefactType[],
+  lessonIds?: string[],
 ): ArtefactTarget[] {
+  const scope = lessonIds ? new Set(lessonIds) : undefined;
   const targets: ArtefactTarget[] = [];
   for (const mod of course.modules) {
     for (const lesson of mod.lessons) {
+      if (scope && !scope.has(lesson.id)) continue;
       for (const type of prefs) {
         targets.push({ lesson, type });
       }
