@@ -20,9 +20,19 @@ import {
   getCourse,
   getCourseEngine,
 } from "@/modules/engine/server";
+import { buildVerificationChecklist } from "@/modules/engine";
 import { getUsageTotals, resetUsageTotals } from "@/modules/llm";
-import { createValidationLog } from "./support/validationLog";
-import type { ArtefactType, Course, Module, StyleProfile } from "@/contracts";
+import {
+  createValidationLog,
+  type ValidationLog,
+} from "./support/validationLog";
+import type {
+  Artefact,
+  ArtefactType,
+  Course,
+  Module,
+  StyleProfile,
+} from "@/contracts";
 
 const isLive = process.env.AI_MODE === "live";
 
@@ -53,6 +63,20 @@ function latestArtefactContent(
   return getArtefactContent(latest.contentRef) ?? "";
 }
 
+/** Prints an artefact's flaggedClaims (ADR 0013) — the in-generation verification worklist. */
+function logFlaggedClaims(
+  { log }: ValidationLog,
+  label: string,
+  artefact: Artefact,
+): void {
+  log(`\n=== FLAGGED CLAIMS — ${label} (${artefact.flaggedClaims.length}) ===`);
+  for (const claim of artefact.flaggedClaims) {
+    log(
+      `  [${claim.type}] "${claim.text}"${claim.note ? ` — ${claim.note}` : ""}`,
+    );
+  }
+}
+
 describe.skipIf(!isLive)(
   "CourseEngine (AI_MODE=live) — CA/GST curriculum: substrate seed + Phase 1+2 validation",
   () => {
@@ -60,7 +84,8 @@ describe.skipIf(!isLive)(
       "generates a practitioner-shaped GST curriculum, steers it via refine, and generates style-conditioned artefacts for the ITC lesson",
       async () => {
         const runStart = Date.now();
-        const { log, path } = createValidationLog("live-ca-gst");
+        const validationLog = createValidationLog("live-ca-gst");
+        const { log, path } = validationLog;
         resetUsageTotals();
         const engine = getCourseEngine();
 
@@ -173,6 +198,16 @@ describe.skipIf(!isLive)(
         log(
           `\n=== ARTEFACT — "${targetLesson.title}" — slide — style A (plain / overview) ===\n${slideA}`,
         );
+        logFlaggedClaims(
+          validationLog,
+          "textual, style A",
+          artefactsA.find((a) => a.type === "textual")!,
+        );
+        logFlaggedClaims(
+          validationLog,
+          "slide, style A",
+          artefactsA.find((a) => a.type === "slide")!,
+        );
 
         expect(textualA.length).toBeGreaterThan(0);
         expect(slideA.length).toBeGreaterThan(0);
@@ -208,11 +243,33 @@ describe.skipIf(!isLive)(
         log(
           `\n=== ARTEFACT — "${targetLesson.title}" — slide — style B (rigorous / deep) ===\n${slideB}`,
         );
+        logFlaggedClaims(
+          validationLog,
+          "textual, style B",
+          artefactsB.find((a) => a.type === "textual")!,
+        );
+        logFlaggedClaims(
+          validationLog,
+          "slide, style B",
+          artefactsB.find((a) => a.type === "slide")!,
+        );
 
         expect(textualB.length).toBeGreaterThan(0);
         expect(slideB.length).toBeGreaterThan(0);
         expect(textualB).not.toBe(textualA);
         expect(slideB).not.toBe(slideA);
+
+        // At least one real, attributable non-static claim (a citation, date, figure, ...)
+        // is expected for real GST reference material — a completely empty flag list across
+        // all four artefacts would itself be a signal something's wrong with Decision 1.
+        const allArtefacts = [...artefactsA, ...artefactsB];
+        const checklist = buildVerificationChecklist(allArtefacts);
+        expect(checklist.totalClaims).toBeGreaterThan(0);
+
+        log(
+          `\n=== VERIFICATION CHECKLIST — ITC lesson, all 4 artefacts (${checklist.totalClaims} claims) ===`,
+        );
+        log(`By type: ${JSON.stringify(checklist.byType)}`);
 
         const elapsedSeconds = ((Date.now() - runStart) / 1000).toFixed(1);
         const usage = getUsageTotals();

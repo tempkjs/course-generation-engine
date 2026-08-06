@@ -4,7 +4,13 @@ import type { LlmProvider, GenOpts } from "@/contracts";
 import { getConfig, assertServerOnly } from "@/shared/config";
 import { recordUsage } from "./usageTracker";
 
-const DEFAULT_MAX_TOKENS = 8000;
+// Bumped from 8000: the Employee Relations jurisdiction=IN live run (ADR 0018) truncated
+// BOTH artefact responses mid-JSON at the 8000 cap — India-grounded content cites more
+// statutes/sections than the prior US-law baseline, so the { content, flaggedClaims }
+// envelope needs more headroom to close before hitting the limit. A truncated envelope fails
+// to parse and silently falls back to one defensive flag instead of the real claim list
+// (domain/artefacts.ts's parseArtefactResponse) — this is the fix, not a workaround.
+const DEFAULT_MAX_TOKENS = 16000;
 
 // Bounded retry for transient errors (429 rate-limit, 5xx incl. Anthropic's 529
 // "overloaded_error") — see ADR 0012. The Anthropic SDK's built-in retry already does

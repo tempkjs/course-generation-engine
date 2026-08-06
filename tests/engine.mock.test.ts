@@ -1,3 +1,4 @@
+import "./support/forceMockMode";
 import { describe, it, expect } from "vitest";
 import { getCourseEngine } from "@/modules/engine/server";
 
@@ -74,5 +75,46 @@ describe("CourseEngine (AI_MODE=mock)", () => {
         depth: "working",
       }),
     ).rejects.toThrow(/validated/);
+  });
+
+  it("carries jurisdiction from GenerateRequest onto the Course (ADR 0018)", async () => {
+    const engine = getCourseEngine();
+    const course = await engine.generateCurriculum({
+      topic: "Employee Relations",
+      field: "hr",
+      jurisdiction: "IN",
+      level: "medium",
+      audienceExperience: "",
+      durationWeeks: 5,
+      cadence: "weekend-2x2",
+      practitionerId: "p-1",
+      style: {
+        practitionerId: "p-1",
+        modalities: ["textual"],
+        tone: "plain",
+        depth: "working",
+      },
+    });
+    expect(course.jurisdiction).toBe("IN");
+  });
+
+  it("leaves jurisdiction undefined when omitted (never a silent default)", async () => {
+    const engine = getCourseEngine();
+    const course = await engine.generateCurriculum({
+      topic: "Employee Relations, no jurisdiction",
+      field: "hr",
+      level: "medium",
+      audienceExperience: "",
+      durationWeeks: 5,
+      cadence: "weekend-2x2",
+      practitionerId: "p-1",
+      style: {
+        practitionerId: "p-1",
+        modalities: ["textual"],
+        tone: "plain",
+        depth: "working",
+      },
+    });
+    expect(course.jurisdiction).toBeUndefined();
   });
 });

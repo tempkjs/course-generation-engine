@@ -133,6 +133,7 @@ export function parseCurriculumResponse(
     practitionerId: req.practitionerId,
     priceBand: "standard",
     cadence: req.cadence,
+    jurisdiction: req.jurisdiction, // ADR 0018 — carried forward for Phase 2
     sourceRefs: [],
     modules,
     createdAt: new Date().toISOString(),

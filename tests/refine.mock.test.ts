@@ -1,3 +1,4 @@
+import "./support/forceMockMode";
 import { describe, it, expect } from "vitest";
 import { getCourseEngine } from "@/modules/engine/server";
 import type { GenerateRequest, StyleProfile } from "@/contracts";

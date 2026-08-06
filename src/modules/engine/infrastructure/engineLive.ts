@@ -10,7 +10,7 @@ import type {
   GenerateArtefactsOpts,
 } from "@/contracts";
 import { getLlmProvider } from "@/modules/llm";
-import { buildCurriculumPrompt } from "../prompts/curriculum.v1";
+import { buildCurriculumPrompt } from "../prompts/curriculum.v2";
 import {
   assertApprovable,
   assertValidatedForArtefacts,

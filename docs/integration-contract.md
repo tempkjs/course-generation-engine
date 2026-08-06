@@ -1,6 +1,6 @@
 # Swakojo Academy — Integration Contract & Architecture Boundaries
 
-**Status:** Decided — working reference · **Contract version:** v0.5
+**Status:** Decided — working reference · **Contract version:** v0.7
 
 > Canonical source: this file, in the repo. Any copy elsewhere is a dated snapshot, not
 > authoritative. (ADR 0016)
@@ -98,6 +98,7 @@ interface Course {
   priceBand: PriceBand; // from revenue model: "short" | "standard" | "intensive"
   cadence: CadenceTemplate; // from revenue model — weekly-slot shape
   isExamPrep?: boolean; // exam vertical flag (raises validation gate)
+  jurisdiction?: Jurisdiction; // added v0.7, ADR 0018 — carried from GenerateRequest
   sourceRefs: string[]; // KnowledgeUnit ids this course drew from (Rule A)
   modules: Module[];
   publishedLmsId?: string; // socket: set on publish to LMS
@@ -126,6 +127,20 @@ interface Artefact {
   generatedBy: "engine" | "practitioner";
   styleProfileRef?: string; // which teaching-style profile conditioned it
   approved: boolean; // false until practitioner validates
+  flaggedClaims: FlaggedClaim[]; // added v0.6, ADR 0013 — [] when nothing flagged
+}
+// A non-static claim the generator itself flagged in-generation (same call, no separate
+// pass) — flagged by NATURE (what kind of claim it is), not by the model's confidence.
+interface FlaggedClaim {
+  type:
+    | "citation"
+    | "date"
+    | "unsettled"
+    | "figure"
+    | "product"
+    | "other-nonstatic";
+  text: string; // the exact phrase/sentence in the content that makes the claim
+  note?: string;
 }
 interface Assessment {
   id: string;
@@ -158,6 +173,7 @@ interface StyleProfile {
 
 type Field = string; // open enum, kept broad (multi-disciplinary)
 type Level = "basic" | "medium" | "advanced";
+type Jurisdiction = string; // open enum, e.g. "IN"; added v0.7, ADR 0018 — see GenerateRequest
 type PriceBand = "short" | "standard" | "intensive";
 type CadenceTemplate = string; // one of the small fixed weekly-slot shapes
 type ArtefactType =
@@ -202,6 +218,7 @@ interface GenerateRequest {
   cadence: CadenceTemplate;
   practitionerId: string;
   style: StyleProfile;
+  jurisdiction?: Jurisdiction; // added v0.7, ADR 0018 — see note below
 }
 type Edit =
   | { op: "add"; parentId: string; node: Partial<SpineNode> }
@@ -221,6 +238,18 @@ type Edit =
   only for those lessons — the practitioner-in-the-loop case of regenerating one lesson's material
   without touching the rest. `opts.lessonIds === []` is a caller error (ambiguous — omit the option
   entirely to mean "all lessons," never pass an empty list to mean "none").
+- **`Artefact.flaggedClaims` (added v0.6, ADR 0013):** every generated `Artefact` carries the
+  non-static claims the generator flagged in the SAME call that produced its content — no
+  separate detection pass, no extra LLM call. `[]` means the generator found nothing to flag,
+  not that the content is claim-free by verification. A lesson/course-level verification
+  checklist is a _derivation_ over `Artefact[]` (`buildVerificationChecklist`), not a stored field.
+- **`GenerateRequest.jurisdiction` / `Course.jurisdiction` (added v0.7, ADR 0018):** optional
+  jurisdiction anchor (e.g. `"IN"`), threaded through both the curriculum prompt and the
+  artefact prompt. Provided => ground legal/regulatory content NATIVELY in that jurisdiction's
+  own statutory framework — never a US baseline translated or mapped onto it. Omitted =>
+  generation must stay jurisdiction-neutral; it must never default to a specific country's law.
+  `Course.jurisdiction` carries the value from `generateCurriculum` forward so `generateArtefacts`
+  (a later, separate call, possibly a different HTTP request) doesn't need it re-supplied.
 
 ### Seam 2 — Engine ↔ LLM (swappable provider)
 
@@ -415,6 +444,19 @@ Generation is **two distinct, separately-costed operations with a human gate bet
 
 ## Changelog
 
+- **v0.7** — Payload change: `GenerateRequest` (Seam 1) gained optional `jurisdiction`, and
+  `Course` gained optional `jurisdiction` carrying it forward — see ADR 0018. Threaded through
+  new prompt versions (`prompts/curriculum.v2.ts`, `prompts/artefacts.v3.ts`; v1/v2 untouched
+  per prompt-governance). Motivating failure: Employee Relations content defaulted to US law
+  (Title VII, ADA, ADEA, FMLA, NLRA, EEOC) for an Indian HR audience because the engine had no
+  jurisdiction anchor at all — not a wrong jurisdiction, an absent one. Backward compatible
+  (omitted ⇒ jurisdiction-neutral generation, the prior behaviour). No other seam signature moved.
+- **v0.6** — Payload change: `Artefact` (Seam 1) gained `flaggedClaims: FlaggedClaim[]` — see
+  ADR 0013, finalized (built) this milestone. Claims are flagged in-generation (the same call
+  that produces the artefact's content, via `prompts/artefacts.v2.ts`'s JSON envelope) — no
+  separate detection pass, no extra LLM call. The same milestone also de-personified artefact
+  content: reference material now, not a ghostwritten first-person transcript (a prompt-layer
+  change, no contract shape impact). No other seam signature moved.
 - **v0.5** — Seam-signature change: `CourseEngine.generateArtefacts` (Seam 1) gained an optional
   fourth parameter, `opts?: GenerateArtefactsOpts` with `lessonIds?: string[]`, so a caller can
   regenerate artefacts for specific lessons instead of the whole course every time — see ADR 0014.

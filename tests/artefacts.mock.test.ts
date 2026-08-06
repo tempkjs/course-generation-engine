@@ -1,9 +1,11 @@
+import "./support/forceMockMode";
 import { describe, it, expect } from "vitest";
 import {
   getArtefactContent,
   getCourse,
   getCourseEngine,
 } from "@/modules/engine/server";
+import { buildVerificationChecklist } from "@/modules/engine";
 import type {
   Course,
   CourseEngine,
@@ -180,5 +182,92 @@ describe("generateArtefacts (AI_MODE=mock)", () => {
         lessonIds: [],
       }),
     ).rejects.toThrow(/lessonIds/);
+  });
+
+  it("every generated artefact carries flaggedClaims (ADR 0013)", async () => {
+    const { engine, approved } = await approvedCourse("artefacts-flags");
+    const artefacts = await engine.generateArtefacts(
+      approved.id,
+      ["textual", "slide"],
+      style,
+    );
+    expect(artefacts.length).toBeGreaterThan(0);
+    for (const artefact of artefacts) {
+      expect(Array.isArray(artefact.flaggedClaims)).toBe(true);
+      // MockLlmProvider's response is never a parseable artefacts.v2 envelope, so the
+      // defensive fallback in parseArtefactResponse fires deterministically every time —
+      // exercising the flaggedClaims path end to end without a real model in the loop.
+      expect(artefact.flaggedClaims.length).toBeGreaterThan(0);
+      for (const claim of artefact.flaggedClaims) {
+        expect(claim.text.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("a not-yet-supported stub type has no flaggedClaims (nothing was actually generated)", async () => {
+    const { engine, approved } = await approvedCourse(
+      "artefacts-flags-stub-type",
+    );
+    const artefacts = await engine.generateArtefacts(
+      approved.id,
+      ["quiz"],
+      style,
+    );
+    for (const artefact of artefacts) {
+      expect(artefact.flaggedClaims).toEqual([]);
+    }
+  });
+
+  it("buildVerificationChecklist aggregates flaggedClaims across every lesson's artefacts", async () => {
+    const { engine, approved } = await approvedCourse("artefacts-checklist");
+    const lessonCount = lessonCountOf(approved);
+    expect(lessonCount).toBeGreaterThan(1); // otherwise aggregation proves nothing
+
+    const artefacts = await engine.generateArtefacts(
+      approved.id,
+      ["textual", "slide"],
+      style,
+    );
+    const checklist = buildVerificationChecklist(artefacts);
+
+    const expectedTotal = artefacts.reduce(
+      (n, a) => n + a.flaggedClaims.length,
+      0,
+    );
+    expect(expectedTotal).toBeGreaterThan(0);
+    expect(checklist.totalClaims).toBe(expectedTotal);
+    expect(checklist.claims).toHaveLength(expectedTotal);
+
+    const byTypeTotal = Object.values(checklist.byType).reduce(
+      (n, count) => n + (count ?? 0),
+      0,
+    );
+    expect(byTypeTotal).toBe(expectedTotal);
+
+    // A lesson-level checklist (just one lesson's artefacts, read back from the persisted
+    // course) must be a strict subset of the course-level one — proves the helper genuinely
+    // aggregates rather than always returning some fixed/global total.
+    const persisted = getCourse(approved.id)!;
+    const oneLessonArtefacts = persisted.modules[0]!.lessons[0]!.artefacts;
+    const lessonChecklist = buildVerificationChecklist(oneLessonArtefacts);
+    expect(lessonChecklist.totalClaims).toBeGreaterThan(0);
+    expect(lessonChecklist.totalClaims).toBeLessThan(checklist.totalClaims);
+  });
+
+  it("mock artefact content never contains first-person markers (Decision 2 guard)", async () => {
+    const { engine, approved } = await approvedCourse(
+      "artefacts-impersonal-mock",
+    );
+    const artefacts = await engine.generateArtefacts(
+      approved.id,
+      ["textual"],
+      style,
+    );
+    for (const artefact of artefacts) {
+      const content = getArtefactContent(artefact.contentRef) ?? "";
+      expect(content).not.toMatch(
+        /\bI\b|\bI've\b|\bI'm\b|\bmy\b|in my experience/i,
+      );
+    }
   });
 });

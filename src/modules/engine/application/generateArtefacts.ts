@@ -3,11 +3,18 @@
 // content. Shared by MockCourseEngine and LiveCourseEngine — AI_MODE decides which
 // LlmProvider getLlmProvider() resolves to; this file doesn't know or care (same pattern as
 // application/refine.ts).
-import type { Artefact, ArtefactType, Course, StyleProfile } from "@/contracts";
+import type {
+  Artefact,
+  ArtefactType,
+  Course,
+  FlaggedClaim,
+  StyleProfile,
+} from "@/contracts";
 import { getLlmProvider } from "@/modules/llm";
-import { buildArtefactPrompt } from "../prompts/artefacts.v1";
+import { buildArtefactPrompt } from "../prompts/artefacts.v3";
 import {
   attachArtefact,
+  parseArtefactResponse,
   planArtefactTargets,
   SUPPORTED_ARTEFACT_TYPES,
 } from "../domain/artefacts";
@@ -17,7 +24,7 @@ function notYetSupportedContent(
   type: ArtefactType,
   lessonTitle: string,
 ): string {
-  return `[not yet supported] Artefact type "${type}" has no Phase-2 generator yet (see prompts/artefacts.v1.ts SUPPORTED_ARTEFACT_TYPES). Requested for lesson "${lessonTitle}".`;
+  return `[not yet supported] Artefact type "${type}" has no Phase-2 generator yet (see domain/artefacts.ts SUPPORTED_ARTEFACT_TYPES). Requested for lesson "${lessonTitle}".`;
 }
 
 export interface GenerateArtefactsResult {
@@ -64,18 +71,27 @@ export async function generateArtefactsForCourse(
     const index = takeIndex(lesson.id, type, seed);
     const contentRef = `content://${course.id}/${lesson.id}/${type}/${index}`;
 
-    const content = SUPPORTED_ARTEFACT_TYPES.has(type)
-      ? await getLlmProvider().generate(
-          buildArtefactPrompt({
-            type,
-            courseTitle: course.title,
-            field: course.field,
-            lessonTitle: lesson.title,
-            lessonObjectives: lesson.objectives,
-            style,
-          }),
-        )
-      : notYetSupportedContent(type, lesson.title);
+    let content: string;
+    let flaggedClaims: FlaggedClaim[];
+    if (SUPPORTED_ARTEFACT_TYPES.has(type)) {
+      const raw = await getLlmProvider().generate(
+        buildArtefactPrompt({
+          type,
+          courseTitle: course.title,
+          field: course.field,
+          lessonTitle: lesson.title,
+          lessonObjectives: lesson.objectives,
+          style,
+          jurisdiction: course.jurisdiction,
+        }),
+      );
+      // The artefacts prompt returns { content, flaggedClaims } in one call (ADR 0013) —
+      // flags live on the Artefact, never inside the stored content blob.
+      ({ content, flaggedClaims } = parseArtefactResponse(raw));
+    } else {
+      content = notYetSupportedContent(type, lesson.title);
+      flaggedClaims = []; // a placeholder stub makes no claims to flag
+    }
 
     putContent(contentRef, content);
 
@@ -85,6 +101,7 @@ export async function generateArtefactsForCourse(
       contentRef,
       generatedBy: "engine",
       approved: false,
+      flaggedClaims,
     };
     artefacts.push(artefact);
     nextCourse = attachArtefact(nextCourse, lesson.id, artefact);

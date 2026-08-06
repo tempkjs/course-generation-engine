@@ -34,6 +34,7 @@ export class MockCourseEngine implements CourseEngine {
       practitionerId: req.practitionerId,
       priceBand: "standard",
       cadence: req.cadence,
+      jurisdiction: req.jurisdiction, // ADR 0018 — carried forward for Phase 2
       sourceRefs: [],
       createdAt: new Date(0).toISOString(),
       modules: [1, 2, 3].map((n) => ({

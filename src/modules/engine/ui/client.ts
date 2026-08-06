@@ -28,6 +28,15 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+// NOT part of CourseEngine/Seam 1 (generateArtefacts hands back contentRef pointers only,
+// never raw content — invariant 3). A thin HTTP peek a content-rendering UI needs on top of
+// the seam, mirroring the server-side getArtefactContent test/route helper (see server.ts).
+export function fetchArtefactContent(contentRef: string): Promise<string> {
+  return postJson<{ content: string }>("/api/artefact-content", {
+    contentRef,
+  }).then((r) => r.content);
+}
+
 export class CourseEngineClient implements CourseEngine {
   generateCurriculum(req: GenerateRequest): Promise<Course> {
     return postJson<Course>("/api/generate-curriculum", req);

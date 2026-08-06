@@ -7,6 +7,7 @@ import type {
   Field,
   Level,
   CadenceTemplate,
+  Jurisdiction,
   SpineNode,
 } from "./data";
 
@@ -19,6 +20,11 @@ export interface GenerateRequest {
   cadence: CadenceTemplate;
   practitionerId: string;
   style: StyleProfile;
+  // Added v0.7, ADR 0018. Omitted => generation must stay jurisdiction-NEUTRAL, never
+  // default to any particular country's law (e.g. US). Provided => ground legal/regulatory
+  // content NATIVELY in that jurisdiction's own statutory framework, not as a translation
+  // of a US baseline.
+  jurisdiction?: Jurisdiction;
 }
 
 export type Edit =
