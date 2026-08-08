@@ -293,6 +293,33 @@
   border-radius: 6px;
 }
 
+.handoff {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid #e6c98a;
+  background: #fdf6e6;
+  border-radius: 8px;
+}
+
+.handoffMessage {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b5a2a;
+}
+
+.handoff textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid #dce6e7;
+  border-radius: 6px;
+  resize: vertical;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
 .hint {
   font-size: 12px;
   color: #5b6b6d;

@@ -14,12 +14,29 @@ import type {
   Artefact,
   ArtefactType,
   Course,
+  Field,
   Level,
   StyleProfile,
 } from "@/contracts";
 import { CurriculumTree } from "./CurriculumTree";
 import { VerificationChecklist } from "./VerificationChecklist";
 import { TONE_TEXT } from "./theme";
+import {
+  DEFAULT_CATALOG_COURSE_TITLE,
+  DEFAULT_CATALOG_FIELD,
+  catalogEntryToRequestFields,
+  findCatalogCourse,
+  getCatalogCourses,
+  getCatalogFields,
+} from "@/config/demo-catalog";
+import { buildArtefactScope } from "./artefactRequest";
+import {
+  artefactRegenKey,
+  canRegenerate,
+  HANDOFF_MESSAGE,
+  recordRegen,
+  type RegenCounts,
+} from "./regenCap";
 import styles from "./studio.module.css";
 
 const poppins = Poppins({
@@ -49,8 +66,8 @@ const WARM_UP_ROUTES = [
 ];
 
 interface FormState {
-  topic: string;
-  field: string;
+  field: Field;
+  courseTitle: string; // selected catalog course title — drives GenerateRequest.topic
   jurisdiction: string;
   level: Level;
   durationWeeks: number;
@@ -59,16 +76,72 @@ interface FormState {
   modalities: ArtefactType[];
 }
 
-const INITIAL_FORM: FormState = {
-  topic: "Employee Relations",
-  field: "hr",
-  jurisdiction: "IN", // ADR 0018 — the studio demo's default audience is Indian practitioners
-  level: "medium",
-  durationWeeks: 5,
-  tone: "plain",
-  depth: "working",
-  modalities: ["textual", "slide"],
-};
+// Selecting a field or a course sets topic + level + jurisdiction + durationWeeks together
+// from the catalog entry (src/config/demo-catalog.ts) — practitioners can only generate
+// courses from that curated list (demo/early-release control).
+function applyCatalogSelection(
+  form: FormState,
+  field: Field,
+  courseTitle: string,
+): FormState {
+  const entry = findCatalogCourse(field, courseTitle);
+  if (!entry) return { ...form, field, courseTitle };
+  const picked = catalogEntryToRequestFields(entry);
+  return {
+    ...form,
+    field,
+    courseTitle,
+    level: picked.level,
+    jurisdiction: picked.jurisdiction ?? "",
+    durationWeeks: picked.durationWeeks,
+  };
+}
+
+const INITIAL_FORM: FormState = applyCatalogSelection(
+  {
+    field: DEFAULT_CATALOG_FIELD,
+    courseTitle: DEFAULT_CATALOG_COURSE_TITLE,
+    jurisdiction: "",
+    level: "medium",
+    durationWeeks: 5,
+    tone: "plain",
+    depth: "working",
+    modalities: ["textual", "slide"],
+  },
+  DEFAULT_CATALOG_FIELD,
+  DEFAULT_CATALOG_COURSE_TITLE,
+);
+
+// Stopgap durable logging (not part of Seam 1 — see src/app/api/regen-log and
+// src/app/api/feedback). Fire-and-forget, same "never block the UI on a log write" posture as
+// Seam 6 (EventSink).
+function logRegeneration(
+  courseId: string,
+  nodeId: string,
+  kind: "curriculum" | "artefact",
+  instruction: string | undefined,
+): void {
+  fetch("/api/regen-log", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ courseId, nodeId, kind, instruction }),
+  }).catch(() => {});
+}
+
+function submitFeedbackLog(
+  courseId: string,
+  nodeId: string,
+  instructionsTried: string[],
+  feedback: string,
+): Promise<void> {
+  return fetch("/api/feedback", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ courseId, nodeId, instructionsTried, feedback }),
+  })
+    .then(() => undefined)
+    .catch(() => {});
+}
 
 function flattenLessons(course: Course) {
   return course.modules.flatMap((m) =>
@@ -98,6 +171,20 @@ export default function StudioPage() {
     null,
   );
   const [instructionDraft, setInstructionDraft] = useState("");
+
+  // Per-node regenerate cap (session-scoped, in-memory) + graceful hand-off state. Shared
+  // across curriculum node regenerate and per-lesson artefact regenerate — see
+  // src/app/studio/regenCap.ts for the disjoint key namespaces.
+  const [regenCounts, setRegenCounts] = useState<RegenCounts>({});
+  const [instructionsTriedByNode, setInstructionsTriedByNode] = useState<
+    Record<string, string[]>
+  >({});
+  const [feedbackDraftByNode, setFeedbackDraftByNode] = useState<
+    Record<string, string>
+  >({});
+  const [feedbackSubmittedNodes, setFeedbackSubmittedNodes] = useState<
+    Record<string, boolean>
+  >({});
 
   const [selectedLessonId, setSelectedLessonId] = useState<string>("");
   const [artefacts, setArtefacts] = useState<Artefact[]>([]);
@@ -145,7 +232,7 @@ export default function StudioPage() {
   async function handleGenerateCurriculum() {
     const c = await run("Generating curriculum…", () =>
       client.generateCurriculum({
-        topic: form.topic,
+        topic: form.courseTitle,
         field: form.field,
         jurisdiction: form.jurisdiction || undefined,
         level: form.level,
@@ -161,6 +248,11 @@ export default function StudioPage() {
       setArtefacts([]);
       setContentByArtefactId({});
       setSelectedLessonId("");
+      // Fresh course = fresh node ids — the old caps/feedback state can't apply to them.
+      setRegenCounts({});
+      setInstructionsTriedByNode({});
+      setFeedbackDraftByNode({});
+      setFeedbackSubmittedNodes({});
     }
   }
 
@@ -184,20 +276,40 @@ export default function StudioPage() {
 
   async function confirmRegenerate(nodeId: string) {
     if (!course) return;
+    if (!canRegenerate(regenCounts, nodeId)) return; // cap already hit — UI hides this control
+    const instruction = instructionDraft.trim() || undefined;
     const c = await run("Regenerating…", () =>
       client.refineCurriculum(course.id, [
-        {
-          op: "regenerate",
-          nodeId,
-          instruction: instructionDraft.trim() || undefined,
-        },
+        { op: "regenerate", nodeId, instruction },
       ]),
     );
     if (c) {
       setCourse(c);
       setRegeneratingNodeId(null);
       setInstructionDraft("");
+      logRegeneration(course.id, nodeId, "curriculum", instruction);
+      setRegenCounts((counts) => recordRegen(counts, nodeId));
+      setInstructionsTriedByNode((byNode) => ({
+        ...byNode,
+        [nodeId]: [
+          ...(byNode[nodeId] ?? []),
+          instruction ?? "(no instruction)",
+        ],
+      }));
     }
+  }
+
+  async function handleSubmitFeedback(nodeId: string) {
+    if (!course) return;
+    const feedback = (feedbackDraftByNode[nodeId] ?? "").trim();
+    if (!feedback) return;
+    await submitFeedbackLog(
+      course.id,
+      nodeId,
+      instructionsTriedByNode[nodeId] ?? [],
+      feedback,
+    );
+    setFeedbackSubmittedNodes((m) => ({ ...m, [nodeId]: true }));
   }
 
   async function handleApprove() {
@@ -210,14 +322,23 @@ export default function StudioPage() {
 
   async function handleGenerateArtefacts() {
     if (!course || !selectedLessonId) return;
+    const capKey = artefactRegenKey(selectedLessonId);
+    if (!canRegenerate(regenCounts, capKey)) return; // cap hit — UI hides the control
+    // Guardrail: always scoped to exactly this one lesson, never a whole-course fan-out
+    // (the CA 48-call incident) — see src/app/studio/artefactRequest.ts.
     const generated = await run(
       "Generating material… (this can take up to a minute)",
       () =>
-        client.generateArtefacts(course.id, ARTEFACT_PREFS, styleProfile, {
-          lessonIds: [selectedLessonId],
-        }),
+        client.generateArtefacts(
+          course.id,
+          ARTEFACT_PREFS,
+          styleProfile,
+          buildArtefactScope(selectedLessonId),
+        ),
     );
     if (!generated) return;
+    logRegeneration(course.id, selectedLessonId, "artefact", undefined);
+    setRegenCounts((counts) => recordRegen(counts, capKey));
     setArtefacts(generated);
     const entries = await Promise.all(
       generated.map(
@@ -229,6 +350,12 @@ export default function StudioPage() {
 
   const canApprove = course?.status === "draft";
   const canGenerateArtefacts = course?.status === "validated";
+  const artefactCapKey = selectedLessonId
+    ? artefactRegenKey(selectedLessonId)
+    : null;
+  const artefactCapped = artefactCapKey
+    ? !canRegenerate(regenCounts, artefactCapKey)
+    : false;
 
   return (
     <div className={`${poppins.className} ${styles.page}`}>
@@ -256,22 +383,40 @@ export default function StudioPage() {
 
           <div className={styles.row}>
             <div className={styles.field}>
-              <label htmlFor="topic">Topic</label>
-              <input
-                id="topic"
-                type="text"
-                value={form.topic}
-                onChange={(e) => setForm({ ...form, topic: e.target.value })}
-              />
+              <label htmlFor="catalog-field">Field</label>
+              <select
+                id="catalog-field"
+                value={form.field}
+                onChange={(e) => {
+                  const field = e.target.value;
+                  const firstTitle = getCatalogCourses(field)[0]?.title ?? "";
+                  setForm((f) => applyCatalogSelection(f, field, firstTitle));
+                }}
+              >
+                {getCatalogFields().map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className={styles.field}>
-              <label htmlFor="field">Field</label>
-              <input
-                id="field"
-                type="text"
-                value={form.field}
-                onChange={(e) => setForm({ ...form, field: e.target.value })}
-              />
+              <label htmlFor="catalog-course">Course</label>
+              <select
+                id="catalog-course"
+                value={form.courseTitle}
+                onChange={(e) =>
+                  setForm((f) =>
+                    applyCatalogSelection(f, f.field, e.target.value),
+                  )
+                }
+              >
+                {getCatalogCourses(form.field).map((c) => (
+                  <option key={c.title} value={c.title}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -393,7 +538,7 @@ export default function StudioPage() {
           <button
             type="button"
             className={styles.button}
-            disabled={busy !== null || !form.topic.trim()}
+            disabled={busy !== null || !form.courseTitle.trim()}
             onClick={handleGenerateCurriculum}
           >
             Generate curriculum
@@ -426,11 +571,18 @@ export default function StudioPage() {
               busy={busy !== null}
               regeneratingNodeId={regeneratingNodeId}
               instructionDraft={instructionDraft}
+              regenCounts={regenCounts}
+              feedbackDraftByNode={feedbackDraftByNode}
+              feedbackSubmittedNodes={feedbackSubmittedNodes}
               onInstructionDraftChange={setInstructionDraft}
               onStartRegenerate={startRegenerate}
               onCancelRegenerate={cancelRegenerate}
               onConfirmRegenerate={confirmRegenerate}
               onRemove={handleRemove}
+              onFeedbackDraftChange={(nodeId, value) =>
+                setFeedbackDraftByNode((m) => ({ ...m, [nodeId]: value }))
+              }
+              onSubmitFeedback={handleSubmitFeedback}
             />
 
             <div
@@ -495,7 +647,9 @@ export default function StudioPage() {
                 <button
                   type="button"
                   className={styles.button}
-                  disabled={busy !== null || !selectedLessonId}
+                  disabled={
+                    busy !== null || !selectedLessonId || artefactCapped
+                  }
                   onClick={handleGenerateArtefacts}
                 >
                   Generate material
@@ -504,6 +658,43 @@ export default function StudioPage() {
                   "Generating material… (this can take up to a minute)" && (
                   <div style={{ marginTop: 12 }}>
                     <Spinner label={busy} />
+                  </div>
+                )}
+                {artefactCapped && artefactCapKey && (
+                  <div className={styles.handoff} style={{ marginTop: 12 }}>
+                    {feedbackSubmittedNodes[artefactCapKey] ? (
+                      <p className={styles.handoffMessage}>
+                        Thanks — your feedback was recorded.
+                      </p>
+                    ) : (
+                      <>
+                        <p className={styles.handoffMessage}>
+                          {HANDOFF_MESSAGE}
+                        </p>
+                        <textarea
+                          rows={3}
+                          placeholder="What went wrong, what you tried, what you expected instead…"
+                          value={feedbackDraftByNode[artefactCapKey] ?? ""}
+                          onChange={(e) =>
+                            setFeedbackDraftByNode((m) => ({
+                              ...m,
+                              [artefactCapKey]: e.target.value,
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          className={`${styles.button} ${styles.buttonSmall}`}
+                          disabled={
+                            busy !== null ||
+                            !(feedbackDraftByNode[artefactCapKey] ?? "").trim()
+                          }
+                          onClick={() => handleSubmitFeedback(artefactCapKey)}
+                        >
+                          Submit feedback
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </>

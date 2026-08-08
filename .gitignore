@@ -21,3 +21,9 @@ coverage/
 
 # Live-run validation output (ADR 0015) — durable on disk for a human to read, not committed
 validation-output/
+
+# Studio demo: durable regenerate + hand-off feedback logs — stopgap until Supabase.
+# Anchored to repo root (leading slash) so this doesn't also match src/app/api/regen-log/
+# and src/app/api/feedback/, the route handlers that write these logs.
+/regen-log/
+/feedback/
